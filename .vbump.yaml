@@ -1,0 +1,7 @@
+version: 3
+
+discoverers:
+  # File pyproject.toml
+  - type: pyproject-toml
+  # File src/vbumper/core/_version.py
+  - type: python-version
