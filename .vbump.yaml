@@ -18,11 +18,10 @@ flows:
       - "git merge {DEVELOP_BRANCH} -m \"chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'\""
     stage_command: git add "{CHANGED_FILE}"
     post_commands:
-      - 'git commit -m "chore: bump version to {VERSION}"'
-      - git tag {VERSION_TAG}
       - uv lock
       - git add uv.lock
-      - 'git commit -m "chore: update uv.lock"'
+      - 'git commit -m "chore: bump version to {VERSION}"'
+      - git tag {VERSION_TAG}
       - git checkout {DEVELOP_BRANCH}
       - "git merge {RELEASE_BRANCH} -m \"chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'\""
 
