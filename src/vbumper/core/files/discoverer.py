@@ -21,6 +21,13 @@ class TooManyMatchesFailure(DiscovererFailure):
     version disagreement — the latter is represented as a `Mismatched` status instead of raised."""
 
 
+class NestedRepositoryWarning(UserWarning):
+    """Issued when discovery prunes a subtree because it has its own VCS root marker (`.git`,
+    `.svn`, `.hg`). Given its own category so the CLI can filter it out independently of every
+    other advisory warning (e.g. via `--no-nested-repo-warnings`) -- distinct from the nested
+    `.vbump.yaml`/`.vbump.yml` case, which stays an unfiltered plain warning."""
+
+
 def _build_pathspec(patterns: Iterable[str] | None) -> pathspec.PathSpec | None:
     """`None` in, `None` out: callers pass `None` to mean "not configured" explicitly, distinct
     from an empty list of patterns (which builds a real, if unhelpful, `PathSpec` that matches
@@ -167,6 +174,7 @@ class AbstractFileDiscoverer[Container: TextFileContentsVersionContainer](
                         f"Skipping {current_dir} for discovery: it has its own {vcs_marker},"
                         f" so it is treated as a separate repository nested inside this one --"
                         f" run `vbump -d {current_dir}` separately if you want to version it.",
+                        NestedRepositoryWarning,
                         stacklevel=2,
                     )
                     dir_entries[:] = []
@@ -318,6 +326,7 @@ class JSONFileDiscoverer(AbstractFileDiscoverer[JSONFileVersionContainer]):
 __all__ = [
     "AbstractFileDiscoverer",
     "JSONFileDiscoverer",
+    "NestedRepositoryWarning",
     "RegularExpressionFileDiscoverer",
     "TooManyMatchesFailure",
     "resolve_discovery_root",

@@ -18,6 +18,7 @@ class GlobalOptions:
     flow: str | None = None
     no_flow: bool = False
     allow_dirty_repository: bool = False
+    no_nested_repo_warnings: bool = False
 
 
 class CLIContext:

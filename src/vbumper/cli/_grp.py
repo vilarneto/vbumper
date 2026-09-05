@@ -39,6 +39,12 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
     help="Do not run any Git workflow, even if `default_flow` is configured.",
 )
 @click.option(
+    "--no-nested-repo-warnings",
+    is_flag=True,
+    default=False,
+    help="Do not warn when a subdirectory with its own `.git`/`.svn`/`.hg` is skipped.",
+)
+@click.option(
     "--force",
     "-f",
     is_flag=True,
@@ -76,11 +82,19 @@ def root_grp(
     dir_: str,
     prerelease_token: str | None,
     skip_unreadable_version_strings: bool,
+    no_nested_repo_warnings: bool,
 ):
+    import warnings
+
+    from vbumper.core.files.discoverer import NestedRepositoryWarning
+
     from .context import CLIContext, GlobalOptions
 
     if flow is not None and no_flow:
         raise click.UsageError("--flow and --no-flow are mutually exclusive.")
+
+    if no_nested_repo_warnings:
+        warnings.filterwarnings("ignore", category=NestedRepositoryWarning)
 
     click_ctx = click.get_current_context()
     click_ctx.ensure_object(CLIContext)
@@ -94,6 +108,7 @@ def root_grp(
         flow=flow,
         no_flow=no_flow,
         allow_dirty_repository=allow_dirty_repository,
+        no_nested_repo_warnings=no_nested_repo_warnings,
     )
 
 
