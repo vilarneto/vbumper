@@ -1,5 +1,10 @@
 # Version Bumper
 
+[![PyPI](https://img.shields.io/pypi/v/vbumper)](https://pypi.org/project/vbumper/)
+[![Python versions](https://img.shields.io/pypi/pyversions/vbumper)](https://pypi.org/project/vbumper/)
+[![License](https://img.shields.io/pypi/l/vbumper)](LICENSE)
+[![Release](https://github.com/vilarneto/vbumper/actions/workflows/release.yml/badge.svg)](https://github.com/vilarneto/vbumper/actions/workflows/release.yml)
+
 A project’s version number may live in more than one place. The build tool reads it from `pyproject.toml` or `package.json` to stamp the artifact it publishes; the binary itself needs to know it to answer `--version` on the command line or fill in an “About” dialog; a mobile app shows it in the splash screen; a Web app embeds it into the header of the footer; the docs site shows it in a corner via Sphinx’s `release`; CI config pins it for a release job; and so on.
 
 Each of these is an independent artifact, and a single project can easily accumulate a handful of them: a Python package might declare its version in `pyproject.toml` for packaging, again in a Sphinx `conf.py` for the docs build, and once more in a `.gitlab-ci.yml` pin for a release job. The trouble starts once a release means touching all of them by hand: it’s easy to bump the package version and forget the docs, or update an Xcode target’s `Info.plist` and leave a sibling test target’s copy behind. Nothing enforces that they stay in agreement, so drift is silent.
@@ -10,7 +15,7 @@ It solves the recurring pain of a version living in several files at once and go
 
 ## Installation
 
-*Version Bumper* is distributed on PyPI as the `vbumper` package. It’s a standalone command-line tool, so the recommended way to install it is into its own isolated environment with [`pipx`](https://pipx.pypa.io) — this keeps its dependencies separate from any project you run it against, while still putting the `vbump` command on your `PATH`:
+*Version Bumper* is distributed on PyPI as the [`vbumper`](https://pypi.org/project/vbumper/) package. It’s a standalone command-line tool, so the recommended way to install it is into its own isolated environment with [`pipx`](https://pipx.pypa.io) — this keeps its dependencies separate from any project you run it against, while still putting the `vbump` command on your `PATH`:
 
 ```bash
 pipx install vbumper
@@ -461,5 +466,9 @@ default_flow: my-release
 ```
 
 `recall: NAME` adopts that flow's definition wholesale (`name`, `require_on_branch`, `pre_commands`, `stage_command`, `post_commands`); the entry may only additionally set `variables`, merged key-by-key onto the recalled definition's own (your keys win, everything else from `~/.vbumpconfig.yaml` survives). Naming a flow that isn't defined there is a configuration error, reported at the point the flow is resolved. `~/.vbumpconfig.yaml` is checked at one single, fixed location — a project without a `recall:` anywhere is entirely unaffected by whether this file exists or what it contains. A flow defined in `~/.vbumpconfig.yaml` cannot itself use `recall:` — it must be a full definition.
+
+## Issues and contributing
+
+Found a bug, or have a built-in/feature request? Open an issue on [GitHub](https://github.com/vilarneto/vbumper/issues).
 
 `~/.vbumpconfig.yaml` requires the same `version: 3` marker as a project's own `.vbump.yaml`.

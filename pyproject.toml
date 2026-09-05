@@ -44,6 +44,11 @@ core = "vbumper.core.entry_point:CorePlugin"
 [project.scripts]
 vbump = "vbumper.cli:cli"
 
+[project.urls]
+Homepage = "https://github.com/vilarneto/vbumper"
+Issues = "https://github.com/vilarneto/vbumper/issues"
+Repository = "https://github.com/vilarneto/vbumper"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/vbumper"]
 
