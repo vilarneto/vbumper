@@ -377,11 +377,10 @@ flows:
       - "git merge {DEVELOP_BRANCH} -m \"chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'\""
     stage_command: git add "{CHANGED_FILE}"
     post_commands:
-      - 'git commit -m "chore: bump version to {VERSION}"'
-      - git tag {VERSION_TAG}
       - uv lock
       - git add uv.lock
-      - 'git commit -m "chore: update uv.lock"'
+      - 'git commit -m "chore: bump version to {VERSION}"'
+      - git tag {VERSION_TAG}
       - git checkout {DEVELOP_BRANCH}
       - "git merge {RELEASE_BRANCH} -m \"chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'\""
 
@@ -392,7 +391,7 @@ This is a `flows:` entry in your own `.vbump.yaml`, keyed by whatever name you'l
 
 `stage_command` is what actually stages the version-bumped files above: vbumper itself never runs `git add` (or any other staging command) on its own — writing a new version into a file and staging it are different concerns, and blindly staging *everything* dirty in the working tree (`git add -A`, `git commit -a`) risks sweeping in unrelated changes you never meant to commit. Set `stage_command` explicitly and it runs once per file vbumper actually wrote this run, with `{CHANGED_FILE}` substituted to that file's path — so `git commit` below has something to commit. Leave it unset and nothing is staged automatically, same as if the field didn't exist.
 
-The `uv lock`/`git add uv.lock`/`git commit` trio above is exactly the kind of project-specific step a flow needs room for: refreshing a lock file after the version in `pyproject.toml` changes, then committing that alongside the version bump itself.
+The `uv lock`/`git add uv.lock` pair above is exactly the kind of project-specific step a flow needs room for: refreshing a lock file after the version in `pyproject.toml` changes, staged *before* the commit below so the lock file update lands in the same commit as the version bump itself, rather than a separate one.
 
 If you use [Git flow](https://nvie.com/posts/a-successful-git-branching-model/) in your projects, here's a flow that drives its `release` branch commands directly, gated on the `develop` branch it expects:
 
