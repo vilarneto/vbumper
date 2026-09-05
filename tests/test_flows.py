@@ -1,7 +1,7 @@
 import os
 import pathlib
+import shlex
 import subprocess
-import sys
 import tempfile
 import unittest
 
@@ -49,12 +49,12 @@ class TestResolveSelectedFlow(unittest.TestCase):
     def test_explicit_flow_overrides_default(self):
         key, flow_config = resolve_selected_flow(self.config, flow="flow-b", no_flow=False)
         self.assertEqual(key, "flow-b")
-        self.assertIs(flow_config, self.config.flows["flow-b"])
+        self.assertEqual(flow_config.name, "git flow")
 
     def test_falls_back_to_default_flow(self):
         key, flow_config = resolve_selected_flow(self.config, flow=None, no_flow=False)
         self.assertEqual(key, "flow-a")
-        self.assertIs(flow_config, self.config.flows["flow-a"])
+        self.assertEqual(flow_config.name, "main bump")
 
     def test_no_default_flow_and_no_explicit_flow_yields_none(self):
         config = VBumpConfig()
@@ -83,35 +83,35 @@ class TestSubstitutePlaceholders(unittest.TestCase):
     def test_substitutes_version_and_version_tag(self):
         version = SemVer.parse("1.2.3")
         result = substitute_placeholders(
-            ["git", "tag", "{VERSION_TAG}", "-m", "release {VERSION}"],
+            "git tag {VERSION_TAG} -m 'release {VERSION}'",
             version=version,
             version_tag_prefix="v",
         )
-        self.assertEqual(result, ["git", "tag", "v1.2.3", "-m", "release 1.2.3"])
+        self.assertEqual(result, "git tag v1.2.3 -m 'release 1.2.3'")
 
-    def test_leaves_arguments_without_placeholders_untouched(self):
+    def test_leaves_text_without_placeholders_untouched(self):
         version = SemVer.parse("1.0.0")
         result = substitute_placeholders(
-            ["git", "checkout", "main"], version=version, version_tag_prefix="v"
+            "git checkout main", version=version, version_tag_prefix="v"
         )
-        self.assertEqual(result, ["git", "checkout", "main"])
+        self.assertEqual(result, "git checkout main")
 
     def test_substitutes_variables_when_given(self):
         version = SemVer.parse("1.0.0")
         result = substitute_placeholders(
-            ["git", "checkout", "{RELEASE_BRANCH}", "{DEVELOP_BRANCH}"],
+            "git checkout {RELEASE_BRANCH} && git merge {DEVELOP_BRANCH}",
             version=version,
             version_tag_prefix="v",
             variables={"RELEASE_BRANCH": "main", "DEVELOP_BRANCH": "develop"},
         )
-        self.assertEqual(result, ["git", "checkout", "main", "develop"])
+        self.assertEqual(result, "git checkout main && git merge develop")
 
     def test_leaves_variable_placeholders_untouched_when_unset(self):
         version = SemVer.parse("1.0.0")
         result = substitute_placeholders(
-            ["git", "checkout", "{RELEASE_BRANCH}"], version=version, version_tag_prefix="v"
+            "git checkout {RELEASE_BRANCH}", version=version, version_tag_prefix="v"
         )
-        self.assertEqual(result, ["git", "checkout", "{RELEASE_BRANCH}"])
+        self.assertEqual(result, "git checkout {RELEASE_BRANCH}")
 
 
 class _GitRepoTestCase(unittest.TestCase):
@@ -203,7 +203,7 @@ class TestRunCommands(unittest.TestCase):
         @click.command()
         def _invoke_dry_run():
             run_commands(
-                [["some-command-that-does-not-exist", "{VERSION}"]],
+                ["some-command-that-does-not-exist {VERSION}"],
                 version=self.version,
                 version_tag_prefix="v",
                 dry_run=True,
@@ -218,20 +218,12 @@ class TestRunCommands(unittest.TestCase):
         self.addCleanup(lambda: marker.unlink(missing_ok=True))
 
         run_commands(
-            [
-                [
-                    sys.executable,
-                    "-c",
-                    "import sys; open(sys.argv[1], 'w').write(sys.argv[2])",
-                    str(marker),
-                    "{VERSION_TAG}",
-                ]
-            ],
+            [f"echo {{VERSION_TAG}} > {shlex.quote(str(marker))}"],
             version=self.version,
             version_tag_prefix="v",
             dry_run=False,
         )
-        self.assertEqual(marker.read_text(), "v1.2.3")
+        self.assertEqual(marker.read_text().strip(), "v1.2.3")
 
     def test_failing_command_raises_and_stops_the_sequence(self):
         marker = pathlib.Path(tempfile.mktemp())
@@ -239,15 +231,7 @@ class TestRunCommands(unittest.TestCase):
 
         with self.assertRaises(FlowCommandFailure):
             run_commands(
-                [
-                    [sys.executable, "-c", "import sys; sys.exit(1)"],
-                    [
-                        sys.executable,
-                        "-c",
-                        "import pathlib, sys; pathlib.Path(sys.argv[1]).touch()",
-                        str(marker),
-                    ],
-                ],
+                ["exit 1", f"touch {shlex.quote(str(marker))}"],
                 version=self.version,
                 version_tag_prefix="v",
                 dry_run=False,

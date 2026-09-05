@@ -13,23 +13,25 @@ import subprocess
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from vbumper.config.flow import FlowConfig
+    from vbumper.config.flow import FlowDefinition
     from vbumper.config.root import VBumpConfig
     from vbumper.core.semver import SemVer
 
 
 def resolve_selected_flow(
     config: VBumpConfig, *, flow: str | None, no_flow: bool
-) -> tuple[str, FlowConfig] | None:
+) -> tuple[str, FlowDefinition] | None:
     """Determine which flow (if any) this run should use, from `--flow`/`--no-flow` and the
-    config's `default_flow`. Returns `(key, FlowConfig)`, or `None` if no flow applies.
+    config's `default_flow`. Returns `(key, FlowDefinition)`, or `None` if no flow applies.
 
     `--no-flow` always wins over `--flow`/`default_flow`. An explicit `--flow NAME` (or a
-    `default_flow`) that isn't among `config.all_flows` -- plugin-contributed flows plus this
-    config's own `flows:` -- is an error; an unset `default_flow` with no `--flow` simply means
-    no flow runs (matches the implicit "no flow selected" case).
+    `default_flow`) that isn't among the project's own `flows:` (resolved against
+    `~/.vbumpconfig.yaml` for any `recall:` entries) is an error; an unset `default_flow` with no
+    `--flow` simply means no flow runs (matches the implicit "no flow selected" case).
     """
 
+    from vbumper.config.global_config import load_global_config
+    from vbumper.config.root import resolve_all_flows
     from vbumper.core.exceptions import UnknownFlowError
 
     if no_flow:
@@ -39,7 +41,7 @@ def resolve_selected_flow(
     if key is None:
         return None
 
-    all_flows = config.all_flows
+    all_flows = resolve_all_flows(config.flows, load_global_config().flows)
     flow_config = all_flows.get(key)
     if flow_config is None:
         raise UnknownFlowError(
@@ -65,24 +67,22 @@ def substitute_variables(text: str, variables: dict[str, str] | None) -> str:
 
 
 def substitute_placeholders(
-    command: list[str],
+    command: str,
     *,
     version: SemVer,
     version_tag_prefix: str,
     variables: dict[str, str] | None = None,
-) -> list[str]:
+) -> str:
     """Replace the `{VERSION}`/`{VERSION_TAG}` placeholders, plus one `{NAME}` placeholder per
-    entry in `variables` (see `substitute_variables`), in each argument of `command`."""
+    entry in `variables` (see `substitute_variables`), in `command`. Substitution is verbatim --
+    no substituted value is quoted or escaped on the command's behalf."""
 
     substitutions = {"{VERSION}": str(version), "{VERSION_TAG}": f"{version_tag_prefix}{version}"}
 
-    def substitute(arg: str) -> str:
-        arg = substitute_variables(arg, variables)
-        for placeholder, value in substitutions.items():
-            arg = arg.replace(placeholder, value)
-        return arg
-
-    return [substitute(arg) for arg in command]
+    command = substitute_variables(command, variables)
+    for placeholder, value in substitutions.items():
+        command = command.replace(placeholder, value)
+    return command
 
 
 def current_branch() -> str:
@@ -97,7 +97,7 @@ def current_branch() -> str:
         raise FlowCommandFailure(
             "Could not determine the current Git branch"
             f" ({result.stderr.strip() or 'git rev-parse failed'})",
-            command=["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            command="git rev-parse --abbrev-ref HEAD",
             returncode=result.returncode,
         )
 
@@ -114,14 +114,14 @@ def is_repository_dirty() -> bool:
         error = result.stderr.strip() or "git status failed"
         raise FlowCommandFailure(
             f"Could not inspect the Git working tree ({error})",
-            command=["git", "status", "--porcelain"],
+            command="git status --porcelain",
             returncode=result.returncode,
         )
 
     return bool(result.stdout.strip())
 
 
-def check_preconditions(flow_config: FlowConfig, *, allow_dirty_repository: bool) -> None:
+def check_preconditions(flow_config: FlowDefinition, *, allow_dirty_repository: bool) -> None:
     """Enforce the flow's preconditions: a clean working tree (unless overridden) and, if
     `require_on_branch` is set, that the repository is currently on that branch.
 
@@ -153,7 +153,7 @@ def check_preconditions(flow_config: FlowConfig, *, allow_dirty_repository: bool
 
 
 def run_commands(
-    commands: list[list[str]],
+    commands: list[str],
     *,
     version: SemVer,
     version_tag_prefix: str,
@@ -164,6 +164,10 @@ def run_commands(
     first failure -- no rollback of commands already run, consistent with write-back's own
     no-rollback stance on container write failures.
 
+    Each command runs through the operating system's own command shell (`/bin/sh` on Unix-like
+    systems, `cmd.exe` on Windows) -- a sequence meant to behave identically on both needs to
+    stick to syntax both shells understand, or be split into separate, simpler commands.
+
     `--dry-run` prints `Would execute: ...` for each command instead of running it.
     """
 
@@ -172,7 +176,7 @@ def run_commands(
     from vbumper.core.exceptions import FlowCommandFailure
 
     for command in commands:
-        argv = substitute_placeholders(
+        substituted = substitute_placeholders(
             command,
             version=version,
             version_tag_prefix=version_tag_prefix,
@@ -180,15 +184,15 @@ def run_commands(
         )
 
         if dry_run:
-            click.echo(f"Would execute: {' '.join(argv)}")
+            click.echo(f"Would execute: {substituted}")
             continue
 
         env = os.environ | {"GIT_MERGE_AUTOEDIT": "no"}
-        result = subprocess.run(argv, env=env)
+        result = subprocess.run(substituted, shell=True, env=env)
         if result.returncode != 0:
             raise FlowCommandFailure(
-                f"Command failed with exit code {result.returncode}: {' '.join(argv)}",
-                command=argv,
+                f"Command failed with exit code {result.returncode}: {substituted}",
+                command=substituted,
                 returncode=result.returncode,
             )
 

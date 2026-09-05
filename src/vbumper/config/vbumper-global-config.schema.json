@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vbumper.dev/schema/vbumper-global-config.schema.json",
+  "title": "vbumper global configuration",
+  "description": "Schema for the optional, per-user `~/.vbumpconfig.yaml` file: reusable named flows a project's own `.vbump.yaml` can pull in by name via `recall:` instead of redefining the same flow in every project. This file is never required to exist -- a project that never uses `recall:` is unaffected by its absence or content.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version"
+  ],
+  "properties": {
+    "version": {
+      "description": "Schema version marker. Must be 3 for this format.",
+      "const": 3
+    },
+    "flows": {
+      "description": "Named flow definitions, each recallable from any project's own `.vbump.yaml` via `flows.<key>.recall`. A flow here is always a full definition -- it cannot itself set `recall`, so a global flow can never refer to another one.",
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/flowKey"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/flowDefinition"
+      },
+      "default": {}
+    }
+  },
+  "$defs": {
+    "flowKey": {
+      "description": "Identifier for a flow: lowercase letters, digits, and hyphens, starting with a letter.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "flowDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Human-readable display name for this flow (used in help/list output).",
+          "type": "string"
+        },
+        "require_on_branch": {
+          "description": "Git branch that must be checked out for this flow to run (e.g. \"develop\", or a {NAME} placeholder such as \"{DEVELOP_BRANCH}\" resolved against this flow's own variables). Omit to allow the flow to run from any branch.",
+          "type": "string"
+        },
+        "variables": {
+          "description": "Arbitrary flow-specific data, each entry available to this flow's commands as a {NAME} placeholder. A project recalling this flow may merge its own `variables` on top, key-by-key. Keys may not be VERSION or VERSION_TAG, which are always reserved for vbumper's own substitutions.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "default": {}
+        },
+        "pre_commands": {
+          "description": "Commands run, in order, before version files are written back. If any command fails, the flow aborts immediately and no write-back or post_commands run.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/command"
+          },
+          "default": []
+        },
+        "post_commands": {
+          "description": "Commands run, in order, after version files are written back. If any command fails, the flow aborts immediately and no further post_commands run.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/command"
+          },
+          "default": []
+        }
+      }
+    },
+    "command": {
+      "description": "A single command, run through the operating system's own command shell after placeholder substitution (/bin/sh on Unix-like systems, cmd.exe on Windows). May contain the placeholders {VERSION}, {VERSION_TAG}, and one {NAME} placeholder per entry in this flow's own `variables:`. Substitution is verbatim -- no value is quoted or escaped on the command's behalf.",
+      "type": "string",
+      "minLength": 1,
+      "examples": [
+        "git checkout {RELEASE_BRANCH}",
+        "git commit -m \"chore: bump version to {VERSION}\"",
+        "git tag {VERSION_TAG}"
+      ]
+    }
+  }
+}

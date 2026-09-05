@@ -140,6 +140,26 @@ Every one of these commands scales to as many containers as your config names �
 
 That covers the everyday loop: `init` once, then look with `list`/`print`, preview with `-n`, then bump, chain, or `set`. Everything from here on — the full command/option reference, config, built-in file types, Git workflows — fills in the edges of that loop.
 
+## How it works
+
+Every run walks through the same five steps:
+
+1. **Discover.** Version Bumper scans a directory for every *version container* named under the config's `discoverers:` — a file that holds a version number, recognized by name/path and content pattern (`pyproject.toml`, `package.json`, an Xcode project, …).
+
+2. **Read.** Each container yields its current version, which falls into one of four states:
+   — **versioned**: holds a single, valid version;
+   — **unversioned**: explicitly empty (e.g. `"version": ""`) — a normal, no-warning “not set yet” state, distinct from a file that never declares a version field at all (which isn’t a version container in the first place);
+   — **invalid**: holds something that fails to parse as semver;
+   — **mismatched**: holds two or more *different* values internally (some containers, like an Xcode target, keep more than one copy, e.g., one per build configuration).
+
+   If the containers found in a project disagree (across containers, or within a single mismatched one), then Version Bumper stops and tells you. This safety check is the reason the tool exists in the first place; you can lift it explicitly with [`--allow-incompatible-versions`](#global-options) once you’ve confirmed the disagreement is fine.
+
+3. **Bump.** With every container in agreement, Version Bumper computes the new version: increment major/minor/patch, move into or through a prerelease, drop a prerelease, or set an explicit value. Several of these can be chained in one invocation, applied left to right.
+
+4. **Write back.** Every changed container is rewritten in place. An unversioned container is filled in with the resulting version.
+
+5. **(Optional) Git workflow.** Wrap the write-back in a configurable sequence of Git commands (or any other commands): tag, merge, commit, whatever a release process calls for (see [Git workflows](#git-workflows)).
+
 ## Recognize your own file formats
 
 Real projects almost always keep the version somewhere the built-ins don’t know about: a `Dockerfile`, a shell script, a Helm chart, a hand-rolled version header in a language Version Bumper doesn’t ship a recognizer for. This is one of the main reasons to reach for Version Bumper in the first place — you’re not limited to the built-in list, and teaching it a new file takes one entry in `.vbump.yaml`, no plugin or code required.
@@ -285,7 +305,7 @@ A [JSON Schema](src/vbumper/config/vbumper-config.schema.json) for this format s
 | `exclude`            | `[]`         | Extra gitignore-style patterns to prune from discovery, added on top of a large built-in default list (VCS directories, language/build caches, IDE folders, editor swap files, …). A bare string is accepted in place of a one-element list. Applies to *every* discoverer, and can prune whole directories from the walk. |
 | `discoverers`        | `[]`         | Extra discoverer entries, added on top of the built-ins (see [Built-in containers](#built-in-containers) and [Adding your own file recognizer](#adding-your-own-file-recognizer)).                                                                                                                                         |
 | `flows`              | `{}`         | Named Git (or other) release workflows (see [Git workflows](#git-workflows)).                                                                                                                                                                                                                                              |
-| `default_flow`       | *(none)*     | Key of the flow to run when neither `--flow` nor `--no-flow` is given. Must name either an entry under `flows` or a stock flow (see [Git workflows](#git-workflows)).                                                                                                                                                      |
+| `default_flow`       | *(none)*     | Key of the flow to run when neither `--flow` nor `--no-flow` is given. Must name an entry under `flows` (see [Git workflows](#git-workflows)).                                                                                                                                                                             |
 
 ### `exclude` vs. a discoverer’s own `include`
 
@@ -337,30 +357,50 @@ Everything about the matched file other than the version string itself is preser
 
 ### Git workflows
 
-A *flow* is a named sequence of commands Version Bumper runs around the version write-back — checking out a release branch, merging it, tagging the result, whatever your release process needs. `pre_commands` run first; the version containers are rewritten and, if changed, committed; then `post_commands` run. Pick which flow (if any) runs with `default_flow:` in config, override it per invocation with `--flow NAME`, or skip it entirely for one run with `--no-flow`.
+A *flow* is a named sequence of commands run around the version write-back — some before the version files are rewritten, some after — checking out a release branch, merging it, tagging the result, whatever your release process needs.
 
-Two flows ship out of the box and need no config to exist: `git-flow` (`git flow release start`/`finish`, gated on the `develop` branch) and `git-main` (checkout the release branch, merge in the development branch, write back and commit, tag, then merge the release branch back into development). Point straight at either with `default_flow: git-flow` or `--flow git-main` — no `flows:` entry required.
-
-Writing your own flow means adding an entry under `flows:`, keyed by whatever name you'll pass to `--flow`/`default_flow:`. A key that doesn't match either stock name defines a whole new flow from scratch. Below, a hand-written flow equivalent to the stock `git-main`, defined under the key `release` instead:
+Here is one, defined under the key `release`: it checks out a release branch, merges the development branch into it, then — after the version files themselves are rewritten — commits and tags the bumped version, and merges the release branch back into development:
 
 ```yaml
 flows:
   release:
     name: Release to main
-    require_on_branch: "{DEVELOP_BRANCH}"
     variables:
       DEVELOP_BRANCH: develop
       RELEASE_BRANCH: main
+    require_on_branch: "{DEVELOP_BRANCH}"
     pre_commands:
-      - [git, checkout, "{RELEASE_BRANCH}"]
-      - [git, merge, "{DEVELOP_BRANCH}", -m, "chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'"]
+      - git checkout {RELEASE_BRANCH}
+      - git merge {DEVELOP_BRANCH} -m "chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'"
     post_commands:
-      - [git, commit, -m, "chore: bump version to {VERSION}"]
-      - [git, tag, "{VERSION_TAG}"]
-      - [git, checkout, "{DEVELOP_BRANCH}"]
-      - [git, merge, "{RELEASE_BRANCH}", -m, "chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'"]
+      - git commit -m "chore: bump version to {VERSION}"
+      - git tag {VERSION_TAG}
+      - uv lock
+      - git add uv.lock
+      - git commit -m "chore: update uv.lock"
+      - git checkout {DEVELOP_BRANCH}
+      - git merge {RELEASE_BRANCH} -m "chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'"
 
 default_flow: release
+```
+
+This is a `flows:` entry in your own `.vbump.yaml`, keyed by whatever name you'll pass to `--flow`/`default_flow:` — here, `release`. The commands that run before the version files are rewritten go under `pre_commands`; the ones after go under `post_commands`. `default_flow:` picks which flow (if any) runs when neither `--flow NAME` nor `--no-flow` is given on the command line.
+
+The `uv lock`/`git add uv.lock`/`git commit` trio above is exactly the kind of project-specific step a flow needs room for: refreshing a lock file after the version in `pyproject.toml` changes, then committing that alongside the version bump itself.
+
+If you use [Git flow](https://nvie.com/posts/a-successful-git-branching-model/) in your projects, here's a flow that drives its `release` branch commands directly, gated on the `develop` branch it expects:
+
+```yaml
+flows:
+  git-flow:
+    name: Git flow
+    require_on_branch: develop
+    pre_commands:
+      - git flow release start {VERSION}
+    post_commands:
+      - git flow release finish {VERSION}
+
+default_flow: git-flow
 ```
 
 Fields:
@@ -369,41 +409,49 @@ Fields:
 |---------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `name`              | *(none)* | Human-readable display name (help/list output only — the flow key is what `--flow`/`default_flow:` actually matches).                                                                                                                                                     |
 | `require_on_branch` | *(none)* | Aborts the run unless the current Git branch matches exactly. May itself be a `{NAME}` placeholder (e.g. `"{DEVELOP_BRANCH}"`), resolved against this flow's own `variables:`.                                                                                            |
-| `variables`         | `{}`     | Arbitrary `{NAME: value}` data, each entry substituted as a `{NAME}` placeholder into every command argument (e.g. `RELEASE_BRANCH: main` above makes `{RELEASE_BRANCH}` available). Keys may not be `VERSION` or `VERSION_TAG`, reserved for the two placeholders below. |
+| `variables`         | `{}`     | Arbitrary `{NAME: value}` data, each entry substituted as a `{NAME}` placeholder into every command (e.g. `RELEASE_BRANCH: main` above makes `{RELEASE_BRANCH}` available). Keys may not be `VERSION` or `VERSION_TAG`, reserved for the two placeholders below.          |
 | `pre_commands`      | `[]`     | Commands run, in order, before write-back. Any failure aborts the flow immediately — write-back and `post_commands` never run.                                                                                                                                            |
 | `post_commands`     | `[]`     | Commands run, in order, after write-back. Any failure aborts the flow immediately — remaining `post_commands` never run.                                                                                                                                                  |
 
-Each command is a list of argv-style strings — no shell parsing, so no shell quoting/escaping to worry about, but also no pipes/redirects. `{VERSION}` and `{VERSION_TAG}` (the computed version and its tagged form, `version_tag_prefix` + version) are always available; a `{NAME}` placeholder referenced without a matching `variables:` entry is left as literal, unreplaced text rather than erroring.
-
-A `flows:` entry keyed `git-flow` or `git-main` instead *tunes* that stock flow rather than defining a new one: `name`/`require_on_branch` replace the stock value when given, and `variables:` is merged key-by-key over the stock flow's own variables (your keys win, everything else survives) — so overriding one variable can't silently drop the rest. For example, this is the whole config needed to keep everything about `git-main` except its release branch:
-
-```yaml
-flows:
-  git-main:
-    variables:
-      RELEASE_BRANCH: master
-```
-
-`pre_commands`/`post_commands` can't be set this way — a flow's commands are what it *is*, not data to tune, so partially replacing them has no sensible meaning (append? prepend? replace outright?). Customizing commands means defining a whole new flow under a different key, as the `release` example above does.
+Each command is a single string, run through the operating system's own command shell after placeholder substitution — `/bin/sh` on Unix-like systems, `cmd.exe` on Windows. A command sequence meant to behave identically on both needs to stick to syntax both shells understand, or be split into separate, simpler commands. `{VERSION}` and `{VERSION_TAG}` (the computed version and its tagged form, `version_tag_prefix` + version) are always available; a `{NAME}` placeholder referenced without a matching `variables:` entry is left as literal, unreplaced text rather than erroring. Substitution is verbatim — no value is quoted or escaped on the command's behalf, so a command relying on a substituted value being treated as a single shell word is responsible for its own quoting.
 
 `--dry-run` turns every command in the flow into a `Would execute: ...` report — nothing is actually run, and no files are written. There is no rollback if a command fails partway through a flow: the remaining commands are skipped, write-back never runs if the failure was in `pre_commands`, and which step failed is reported plainly. Recovering the repository from there is up to you.
 
-## How it works
+#### Reusing a flow across projects: `~/.vbumpconfig.yaml`
 
-Every run walks through the same five steps:
+A flow like the `release` example above is often identical across several of your projects, save for one or two variables. Rather than repeating its full definition in every `.vbump.yaml`, define it once in `~/.vbumpconfig.yaml` — a single, optional, per-user file — and pull it into a project by name:
 
-1. **Discover.** Version Bumper scans a directory for every *version container* named under the config's `discoverers:` — a file that holds a version number, recognized by name/path and content pattern (`pyproject.toml`, `package.json`, an Xcode project, …).
+```yaml
+# ~/.vbumpconfig.yaml
+version: 3
+flows:
+  release:
+    name: Release to main
+    require_on_branch: "{DEVELOP_BRANCH}"
+    variables:
+      DEVELOP_BRANCH: develop
+      RELEASE_BRANCH: main
+    pre_commands:
+      - git checkout {RELEASE_BRANCH}
+      - git merge {DEVELOP_BRANCH} -m "chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'"
+    post_commands:
+      - git commit -m "chore: bump version to {VERSION}"
+      - git tag {VERSION_TAG}
+      - git checkout {DEVELOP_BRANCH}
+      - git merge {RELEASE_BRANCH} -m "chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'"
+```
 
-2. **Read.** Each container yields its current version, which falls into one of four states:
-   — **versioned**: holds a single, valid version;
-   — **unversioned**: explicitly empty (e.g. `"version": ""`) — a normal, no-warning “not set yet” state, distinct from a file that never declares a version field at all (which isn’t a version container in the first place);
-   — **invalid**: holds something that fails to parse as semver;
-   — **mismatched**: holds two or more *different* values internally (some containers, like an Xcode target, keep more than one copy, e.g., one per build configuration).
+```yaml
+# a project's .vbump.yaml
+flows:
+  my-release:
+    recall: release
+    variables:
+      RELEASE_BRANCH: master
 
-   If the containers found in a project disagree (across containers, or within a single mismatched one), then Version Bumper stops and tells you. This safety check is the reason the tool exists in the first place; you can lift it explicitly with [`--allow-incompatible-versions`](#global-options) once you’ve confirmed the disagreement is fine.
+default_flow: my-release
+```
 
-3. **Bump.** With every container in agreement, Version Bumper computes the new version: increment major/minor/patch, move into or through a prerelease, drop a prerelease, or set an explicit value. Several of these can be chained in one invocation, applied left to right.
+`recall: NAME` adopts that flow's definition wholesale (`name`, `require_on_branch`, `pre_commands`, `post_commands`); the entry may only additionally set `variables`, merged key-by-key onto the recalled definition's own (your keys win, everything else from `~/.vbumpconfig.yaml` survives). Naming a flow that isn't defined there is a configuration error, reported at the point the flow is resolved. `~/.vbumpconfig.yaml` is checked at one single, fixed location — a project without a `recall:` anywhere is entirely unaffected by whether this file exists or what it contains. A flow defined in `~/.vbumpconfig.yaml` cannot itself use `recall:` — it must be a full definition.
 
-4. **Write back.** Every changed container is rewritten in place. An unversioned container is filled in with the resulting version.
-
-5. **(Optional) Git workflow.** Wrap the write-back in a configurable sequence of Git commands (or any other commands): tag, merge, commit, whatever a release process calls for (see [Git workflows](#git-workflows)).
+`~/.vbumpconfig.yaml` requires the same `version: 3` marker as a project's own `.vbump.yaml`.

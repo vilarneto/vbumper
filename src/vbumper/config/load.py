@@ -40,7 +40,7 @@ def find_config_path(start: str | Path = ".") -> Path | None:
     return None
 
 
-def _raise_configuration_error(path: Path, cause: Exception) -> None:
+def raise_configuration_error(path: Path, cause: Exception) -> None:
     import pydantic
     from ruamel.yaml import YAMLError
 
@@ -82,16 +82,16 @@ def load_config_file(path: str | Path) -> VBumpConfig:
         try:
             raw = yaml.load(fd)
         except YAMLError as exc:
-            _raise_configuration_error(path, exc)
-            raise  # pragma: no cover -- _raise_configuration_error always raises
+            raise_configuration_error(path, exc)
+            raise  # pragma: no cover -- raise_configuration_error always raises
 
     raw = raw if raw is not None else {}
 
     try:
         return VBumpConfig.model_validate(raw)
     except pydantic.ValidationError as exc:
-        _raise_configuration_error(path, exc)
-        raise  # pragma: no cover -- _raise_configuration_error always raises
+        raise_configuration_error(path, exc)
+        raise  # pragma: no cover -- raise_configuration_error always raises
 
 
 def load_config(start: str | Path = ".") -> VBumpConfig:
@@ -116,4 +116,9 @@ def load_config(start: str | Path = ".") -> VBumpConfig:
     return load_config_file(config_path)
 
 
-__all__ = ["find_config_path", "load_config", "load_config_file"]
+__all__ = [
+    "find_config_path",
+    "load_config",
+    "load_config_file",
+    "raise_configuration_error",
+]

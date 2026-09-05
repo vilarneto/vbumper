@@ -4,13 +4,13 @@ from vbumper.core.configs.protocols import DiscovererConfigProtocol
 from vbumper.core.plugins import VBumpPluginProtocol
 
 if TYPE_CHECKING:
-    from vbumper.config.flow import FlowConfig
     from vbumper.core.discoverers.protocols import DiscovererProtocol
 
 
 class CorePlugin(VBumpPluginProtocol):
-    """Registers the discoverer config classes and Git workflow flows that ship in-tree with
-    vbumper itself, as opposed to ones installed from a separate plugin distribution."""
+    """Registers the discoverer config classes that ship in-tree with vbumper itself, as opposed
+    to ones installed from a separate plugin distribution. Contributes no flows -- see
+    `README.md`'s recipes for the Git workflows that used to ship as built-in flows."""
 
     def iter_config_classes(self) -> Iterator[type[DiscovererConfigProtocol[DiscovererProtocol]]]:
         from vbumper.core.files.builtins.infoplist import InfoPlistFileConfig
@@ -28,49 +28,6 @@ class CorePlugin(VBumpPluginProtocol):
         yield PBXProjFileConfig
         yield SetupPyFileConfig
         yield PythonVersionFileConfig
-
-    def iter_flows(self) -> Iterator[tuple[str, FlowConfig]]:
-        from vbumper.config.flow import FlowConfig
-
-        yield (
-            "git-flow",
-            FlowConfig(
-                name="Git flow",
-                require_on_branch="develop",
-                pre_commands=[["git", "flow", "release", "start", "{VERSION}"]],
-                post_commands=[["git", "flow", "release", "finish", "{VERSION}"]],
-            ),
-        )
-        yield (
-            "git-main",
-            FlowConfig(
-                name="'main' version bump",
-                require_on_branch="{DEVELOP_BRANCH}",
-                variables={"DEVELOP_BRANCH": "develop", "RELEASE_BRANCH": "main"},
-                pre_commands=[
-                    ["git", "checkout", "{RELEASE_BRANCH}"],
-                    [
-                        "git",
-                        "merge",
-                        "{DEVELOP_BRANCH}",
-                        "-m",
-                        "chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'",
-                    ],
-                ],
-                post_commands=[
-                    ["git", "commit", "-m", "chore: bump version to {VERSION}"],
-                    ["git", "tag", "{VERSION_TAG}"],
-                    ["git", "checkout", "{DEVELOP_BRANCH}"],
-                    [
-                        "git",
-                        "merge",
-                        "{RELEASE_BRANCH}",
-                        "-m",
-                        "chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'",
-                    ],
-                ],
-            ),
-        )
 
 
 __all__ = ["CorePlugin"]

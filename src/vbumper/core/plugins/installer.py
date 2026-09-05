@@ -1,14 +1,12 @@
 from typing import TYPE_CHECKING, Any, Iterator
 
 if TYPE_CHECKING:
-    from vbumper.config.flow import FlowConfig
     from vbumper.core.configs.protocols import DiscovererConfigProtocol
     from vbumper.core.discoverers.protocols import DiscovererProtocol
     from vbumper.core.plugins.protocols import VBumpPluginProtocol
 
 _plugins: list[VBumpPluginProtocol] = []
 _config_cls_by_type: dict[str, type[DiscovererConfigProtocol[DiscovererProtocol]]] = {}
-_flow_by_key: dict[str, FlowConfig] = {}
 
 
 def iter_plugins() -> Iterator[VBumpPluginProtocol]:
@@ -32,11 +30,6 @@ def install_plugin(plugin: VBumpPluginProtocol) -> None:
             raise ValueError(f"Duplicate config type: {config_type}")
         _config_cls_by_type[config_type] = config_cls
 
-    for flow_key, flow_config in plugin.iter_flows():
-        if flow_key in _flow_by_key:
-            raise ValueError(f"Duplicate flow key: {flow_key}")
-        _flow_by_key[flow_key] = flow_config
-
     _plugins.append(plugin)
 
 
@@ -46,11 +39,10 @@ def install_plugins() -> None:
     Resets the registry first, so this is safe to call more than once within a process (e.g.
     once per CLI invocation in a test suite) instead of raising on re-registration."""
 
-    global _plugins, _config_cls_by_type, _flow_by_key
+    global _plugins, _config_cls_by_type
 
     _plugins = []
     _config_cls_by_type = {}
-    _flow_by_key = {}
 
     for plugin in iter_plugins():
         install_plugin(plugin)
@@ -63,15 +55,6 @@ def get_config_cls(config_type: str) -> type[DiscovererConfigProtocol[Discoverer
         return _config_cls_by_type[config_type]
     except KeyError:
         raise ConfigurationError(f"Unknown config type: {config_type}")
-
-
-def iter_registered_flows() -> Iterator[tuple[str, FlowConfig]]:
-    """Iterate over every `(key, FlowConfig)` pair contributed by installed plugins.
-
-    Used by `VBumpConfig.all_flows` to overlay a project's own `flows:` on top of these --
-    plugin-contributed flows are defaults a project can override by key, not reserved names."""
-
-    yield from _flow_by_key.items()
 
 
 def iter_registered_config_classes() -> Iterator[
@@ -95,5 +78,4 @@ __all__ = [
     "install_plugins",
     "iter_plugins",
     "iter_registered_config_classes",
-    "iter_registered_flows",
 ]

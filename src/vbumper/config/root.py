@@ -3,7 +3,7 @@ from typing import Annotated
 import pydantic
 
 from .discoverer import DiscovererEntryConfig
-from .flow import FLOW_KEY_PATTERN, FlowConfig
+from .flow import FlowConfig, FlowDefinition, FlowKey
 
 
 def _coerce_exclude_patterns(value: str | list[str]) -> list[str]:
@@ -105,8 +105,6 @@ def _dedupe(patterns: list[str]) -> list[str]:
 #: Schema version marker for this (vbumper) config format. Any other value is refused outright.
 CONFIG_VERSION = 3
 
-FlowKey = Annotated[str, pydantic.StringConstraints(pattern=FLOW_KEY_PATTERN.pattern)]
-
 
 class VBumpConfig(pydantic.BaseModel):
     """Root of the vbumper project configuration file (`.vbump.yaml`/`.vbump.yml`).
@@ -151,66 +149,37 @@ class VBumpConfig(pydantic.BaseModel):
 
         return _dedupe([*default_exclude_patterns(), *self.exclude])
 
-    @property
-    def all_flows(self) -> dict[str, FlowConfig]:
-        """The flows a run should actually have available: every plugin-contributed flow (see
-        `vbumper.core.plugins.installer.iter_registered_flows`), with this config's own `flows:`
-        entries layered on top by key.
 
-        A project's own entry for a key that doesn't collide with a plugin-contributed flow is a
-        full, standalone flow definition, used as-is. A project's own entry for a
-        plugin-contributed key instead *tunes* that stock flow rather than replacing it wholesale
-        -- see `_merge_flow_override` for exactly which fields that means."""
+def resolve_all_flows(
+    project_flows: dict[FlowKey, FlowConfig], global_flows: dict[FlowKey, FlowDefinition]
+) -> dict[FlowKey, FlowDefinition]:
+    """The flows a run should actually have available: a project's own `flows:` entries, each
+    resolved against `global_flows` (from `~/.vbumpconfig.yaml`, see
+    `vbumper.config.global_config.load_global_config`) when it sets `recall:`.
 
-        from vbumper.core.plugins.installer import iter_registered_flows
-
-        stock_flows = dict(iter_registered_flows())
-        merged = dict(stock_flows)
-        for key, override in self.flows.items():
-            base = stock_flows.get(key)
-            merged[key] = override if base is None else _merge_flow_override(key, base, override)
-        return merged
-
-
-#: `FlowConfig` fields a project's own `flows:` entry may not set when overriding a
-#: plugin-contributed flow key -- these define what the flow *does*, not data that tunes it, so
-#: partially replacing them (append? prepend? replace outright?) has no unambiguous meaning.
-#: Customizing them means defining a whole new flow under a different key instead.
-_LOCKED_OVERRIDE_FIELDS = frozenset({"pre_commands", "post_commands"})
-
-
-def _merge_flow_override(key: str, base: FlowConfig, override: FlowConfig) -> FlowConfig:
-    """Combine a plugin-contributed flow (`base`) with a project's own `flows:` entry of the same
-    key (`override`) into the `FlowConfig` a run should actually use.
-
-    Only fields the project's entry actually set (per `override.model_fields_set` -- distinct from
-    a field merely left at its default) take effect; anything unset falls back to `base`.
-    `name`/`require_on_branch` are replaced outright when set; `variables` is merged key-by-key
-    (the override's entries win on conflict, everything else from `base` survives) rather than
-    replaced wholesale, so overriding one variable can't silently drop the rest -- see
-    `_LOCKED_OVERRIDE_FIELDS` for the fields this never touches."""
+    An entry with no `recall:` is a full, standalone definition, used as-is. An entry with
+    `recall: NAME` adopts the `global_flows[NAME]` definition wholesale, with its own `variables`
+    merged key-by-key on top (the entry's entries win on conflict, everything else from the
+    recalled definition survives) -- naming an undefined global flow is a `ConfigurationError`,
+    not a silent no-op."""
 
     from vbumper.core.exceptions import ConfigurationError
 
-    locked_fields_used = _LOCKED_OVERRIDE_FIELDS & override.model_fields_set
-    if locked_fields_used:
-        raise ConfigurationError(
-            f"flows.{key}: {', '.join(sorted(locked_fields_used))} cannot be overridden on the"
-            f" stock {key!r} flow -- define a new flow under a different key instead"
-        )
+    resolved: dict[str, FlowDefinition] = {}
+    for key, entry in project_flows.items():
+        if entry.recall is None:
+            resolved[key] = FlowDefinition(**entry.model_dump(exclude={"recall"}))
+            continue
 
-    fields_set = override.model_fields_set
-    return base.model_copy(
-        update={
-            "name": override.name if "name" in fields_set else base.name,
-            "require_on_branch": (
-                override.require_on_branch
-                if "require_on_branch" in fields_set
-                else base.require_on_branch
-            ),
-            "variables": {**base.variables, **override.variables},
-        }
-    )
+        base = global_flows.get(entry.recall)
+        if base is None:
+            raise ConfigurationError(
+                f"flows.{key}: recall: {entry.recall!r} does not match any flow defined in"
+                f" ~/.vbumpconfig.yaml (available: {', '.join(sorted(global_flows)) or '(none)'})"
+            )
+        resolved[key] = base.model_copy(update={"variables": {**base.variables, **entry.variables}})
+
+    return resolved
 
 
 __all__ = [
@@ -219,4 +188,5 @@ __all__ = [
     "FlowKey",
     "VBumpConfig",
     "default_exclude_patterns",
+    "resolve_all_flows",
 ]

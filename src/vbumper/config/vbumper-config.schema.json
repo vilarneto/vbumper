@@ -19,11 +19,11 @@
       "default": "v"
     },
     "default_flow": {
-      "description": "Key of the flow to run when no --flow option is given on the command line -- either one of this file's own `flows` entries, or a flow contributed by an installed plugin (e.g. the stock `git-flow`/`git-main` flows). Omit to have no default flow (equivalent to always requiring --flow or defaulting to no flow at all). Overridable per invocation with --flow=NAME or suppressed with --no-flow.",
+      "description": "Key of the flow to run when no --flow option is given on the command line, matching one of this file's own `flows` entries. Omit to have no default flow (equivalent to always requiring --flow or defaulting to no flow at all). Overridable per invocation with --flow=NAME or suppressed with --no-flow.",
       "$ref": "#/$defs/flowKey"
     },
     "flows": {
-      "description": "Named Git release workflows. A flow is a sequence of pre-write-back commands, the version-file write-back itself, and a sequence of post-write-back commands. No flow — plugin-contributed (e.g. the stock `git-flow`/`git-main` flows) or user-defined — receives any special treatment from vbumper: every option, precondition, and config value applies identically regardless of which flow (if any) is selected. An entry here whose key matches a plugin-contributed flow tunes that stock flow rather than replacing it: `name`/`require_on_branch` replace the stock value if given, `variables` merges key-by-key over the stock flow's own variables, and `pre_commands`/`post_commands` may not be set at all (define a new flow under a different key to customize commands).",
+      "description": "Named Git release workflows. A flow is a sequence of pre-write-back commands, the version-file write-back itself, and a sequence of post-write-back commands. No flow receives any special treatment from vbumper: every option, precondition, and config value applies identically regardless of which flow (if any) is selected. Each entry is either a full definition, or a `recall` of a flow defined in `~/.vbumpconfig.yaml` with its own `variables` merged on top -- see `flowDefinition`.",
       "type": "object",
       "propertyNames": {
         "$ref": "#/$defs/flowKey"
@@ -68,70 +68,78 @@
       "pattern": "^[a-z][a-z0-9-]*$"
     },
     "flowDefinition": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "name": {
-          "description": "Human-readable display name for this flow (used in help/list output). Purely cosmetic; the flow key is what --flow=NAME matches against.",
-          "type": "string"
-        },
-        "require_on_branch": {
-          "description": "Git branch that must be checked out for this flow to run (e.g. \"develop\", or a {NAME} placeholder such as \"{DEVELOP_BRANCH}\" resolved against this flow's own variables). Omit to allow the flow to run from any branch.",
-          "type": "string"
-        },
-        "variables": {
-          "description": "Arbitrary flow-specific data, each entry available to this flow's commands as a {NAME} placeholder (e.g. {\"RELEASE_BRANCH\": \"main\"} makes {RELEASE_BRANCH} available). Purely data substituted into commands -- vbumper never acts on the values directly. Keys may not be VERSION or VERSION_TAG, which are always reserved for vbumper's own substitutions.",
+      "description": "Either a full flow definition, or a `recall` of a flow defined in `~/.vbumpconfig.yaml` with only `variables` alongside it.",
+      "oneOf": [
+        {
           "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "propertyNames": {
-            "pattern": "^[A-Z][A-Z0-9_]*$"
-          },
-          "default": {}
+          "additionalProperties": false,
+          "required": [
+            "recall"
+          ],
+          "properties": {
+            "recall": {
+              "description": "Key of a flow defined under `~/.vbumpconfig.yaml`'s `flows:`. Adopts that definition wholesale (name, require_on_branch, pre_commands, post_commands); this entry may only additionally set `variables`, merged key-by-key onto the recalled definition's own. Referring to a name not defined there is a configuration error.",
+              "$ref": "#/$defs/flowKey"
+            },
+            "variables": {
+              "$ref": "#/$defs/flowVariables"
+            }
+          }
         },
-        "pre_commands": {
-          "description": "Commands run, in order, before version files are written back. If any command fails, the flow aborts immediately and no write-back or post_commands run.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/command"
-          },
-          "default": []
-        },
-        "post_commands": {
-          "description": "Commands run, in order, after version files are written back. If any command fails, the flow aborts immediately and no further post_commands run.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/command"
-          },
-          "default": []
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "description": "Human-readable display name for this flow (used in help/list output). Purely cosmetic; the flow key is what --flow=NAME matches against.",
+              "type": "string"
+            },
+            "require_on_branch": {
+              "description": "Git branch that must be checked out for this flow to run (e.g. \"develop\", or a {NAME} placeholder such as \"{DEVELOP_BRANCH}\" resolved against this flow's own variables). Omit to allow the flow to run from any branch.",
+              "type": "string"
+            },
+            "variables": {
+              "$ref": "#/$defs/flowVariables"
+            },
+            "pre_commands": {
+              "description": "Commands run, in order, before version files are written back. If any command fails, the flow aborts immediately and no write-back or post_commands run.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/command"
+              },
+              "default": []
+            },
+            "post_commands": {
+              "description": "Commands run, in order, after version files are written back. If any command fails, the flow aborts immediately and no further post_commands run.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/command"
+              },
+              "default": []
+            }
+          }
         }
-      }
+      ]
     },
-    "command": {
-      "description": "A single command invocation as argv: the executable followed by its arguments, each as a separate string (no shell parsing/splitting). Elements may contain the placeholders {VERSION} (the bumped version string, e.g. \"1.2.3-rc.1\"), {VERSION_TAG} (version_tag_prefix + VERSION, e.g. \"v1.2.3-rc.1\"), and one {NAME} placeholder per entry in this flow's own `variables:`.",
-      "type": "array",
-      "items": {
+    "flowVariables": {
+      "description": "Arbitrary flow-specific data, each entry available to this flow's commands as a {NAME} placeholder (e.g. {\"RELEASE_BRANCH\": \"main\"} makes {RELEASE_BRANCH} available). Purely data substituted into commands -- vbumper never acts on the values directly. Keys may not be VERSION or VERSION_TAG, which are always reserved for vbumper's own substitutions.",
+      "type": "object",
+      "additionalProperties": {
         "type": "string"
       },
-      "minItems": 1,
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      },
+      "default": {}
+    },
+    "command": {
+      "description": "A single command, run through the operating system's own command shell after placeholder substitution (/bin/sh on Unix-like systems, cmd.exe on Windows). May contain the placeholders {VERSION} (the bumped version string, e.g. \"1.2.3-rc.1\"), {VERSION_TAG} (version_tag_prefix + VERSION, e.g. \"v1.2.3-rc.1\"), and one {NAME} placeholder per entry in this flow's own `variables:`. Substitution is verbatim -- no value is quoted or escaped on the command's behalf.",
+      "type": "string",
+      "minLength": 1,
       "examples": [
-        [
-          "git",
-          "checkout",
-          "{RELEASE_BRANCH}"
-        ],
-        [
-          "git",
-          "commit",
-          "-m",
-          "chore: bump version to {VERSION}"
-        ],
-        [
-          "git",
-          "tag",
-          "{VERSION_TAG}"
-        ]
+        "git checkout {RELEASE_BRANCH}",
+        "git commit -m \"chore: bump version to {VERSION}\"",
+        "git tag {VERSION_TAG}"
       ]
     },
     "discovererConfig": {

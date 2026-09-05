@@ -48,7 +48,7 @@ class FlowCommandFailure(VBumpError):
     No rollback is attempted for commands that already ran -- this mirrors write-back's own
     no-rollback stance (see `WriteBackFailure`) for the flow engine."""
 
-    def __init__(self, *args, command: list[str], returncode: int):
+    def __init__(self, *args, command: str, returncode: int):
         super().__init__(*args)
         self.command = command
         self.returncode = returncode

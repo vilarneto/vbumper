@@ -450,13 +450,9 @@ class TestFlowEngine(BumpCLITestCase):
                 name: Release
                 require_on_branch: main
                 pre_commands:
-                  - - {sys.executable!r}
-                    - -c
-                    - import pathlib; pathlib.Path('pre.marker').write_text('{{VERSION}}')
+                  - {sys.executable} -c "open('pre.marker', 'w').write('{{VERSION}}')"
                 post_commands:
-                  - - {sys.executable!r}
-                    - -c
-                    - import pathlib; pathlib.Path('post.marker').write_text('{{VERSION_TAG}}')
+                  - {sys.executable} -c "open('post.marker', 'w').write('{{VERSION_TAG}}')"
             discoverers:
               - type: file-regexp
                 include: pkg/version.txt
