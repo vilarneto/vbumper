@@ -36,7 +36,7 @@ license = "MIT"
 name = "vbumper"
 readme = "README.md"
 requires-python = ">=3.14"
-version = "0.3.0-rc.1"
+version = "0.3.0-rc.2"
 
 [project.entry-points."vbumper.plugin"]
 core = "vbumper.core.entry_point:CorePlugin"
