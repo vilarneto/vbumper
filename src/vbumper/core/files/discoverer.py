@@ -153,7 +153,7 @@ class AbstractFileDiscoverer[Container: TextFileContentsVersionContainer](
                 )
                 if nested_config is not None:
                     warnings.warn(
-                        f"Skipping {current_dir} for discovery: it has its own"
+                        f"Skipping directory '{current_dir}' from discovery: it has its own"
                         f" {nested_config.name}, so it is treated as an independent project"
                         f" -- run `vbump -d {current_dir}` separately if you want to version it.",
                         stacklevel=2,
@@ -171,9 +171,10 @@ class AbstractFileDiscoverer[Container: TextFileContentsVersionContainer](
                 )
                 if vcs_marker is not None:
                     warnings.warn(
-                        f"Skipping {current_dir} for discovery: it has its own {vcs_marker},"
-                        f" so it is treated as a separate repository nested inside this one --"
-                        f" run `vbump -d {current_dir}` separately if you want to version it.",
+                        f"Skipping directory '{current_dir}' from discovery: it has its own"
+                        f" {vcs_marker}, so it is treated as a separate repository nested inside"
+                        f" this one -- run `vbump -d {current_dir}` separately if you want to"
+                        f" version it.",
                         NestedRepositoryWarning,
                         stacklevel=2,
                     )
