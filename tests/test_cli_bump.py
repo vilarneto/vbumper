@@ -521,5 +521,88 @@ class TestFlowEngine(BumpCLITestCase):
         self.assertIn("mutually exclusive", result.output)
 
 
+class TestStageCommand(BumpCLITestCase):
+    """CLI-level exercise of `stage_command`: a marker file appended to once per written file,
+    in place of a real `git add`, to keep this self-contained and independent of a real
+    repository's write-locking/index state."""
+
+    def setUp(self):
+        super().setUp()
+
+        subprocess.run(["git", "init", "-q"], check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.com"], check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], check=True)
+
+        _write_config(
+            f"""\
+            version: 3
+            default_flow: release
+            flows:
+              release:
+                name: Release
+                require_on_branch: main
+                pre_commands:
+                  - {sys.executable} -c "open('pre.marker', 'a').write('{{CHANGED_FILE}}|')"
+                stage_command: >-
+                  {sys.executable} -c "open('stage.marker', 'a').write('{{CHANGED_FILE}}|')"
+                post_commands:
+                  - {sys.executable} -c "open('post.marker', 'w').write('{{VERSION_TAG}}')"
+            discoverers:
+              - type: file-regexp
+                include: pkg/version.txt
+                version: 'version = "(?P<version>[^"]*)"'
+              - type: file-regexp
+                include: pkg/other.txt
+                version: 'version = "(?P<version>[^"]*)"'
+            """
+        )
+        _write_version_file("pkg/version.txt", 'version = "1.2.3"\n')
+        _write_version_file("pkg/other.txt", 'version = "1.2.3"\n')
+        subprocess.run(["git", "add", "."], check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "initial"], check=True)
+        subprocess.run(["git", "checkout", "-q", "-b", "main"], check=True)
+
+    def test_stage_command_runs_once_per_written_file(self):
+        result = self.invoke(["patch"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        stage_marker = pathlib.Path("stage.marker").read_text()
+        self.assertIn(str(pathlib.Path("pkg/version.txt")), stage_marker)
+        self.assertIn(str(pathlib.Path("pkg/other.txt")), stage_marker)
+        self.assertEqual(pathlib.Path("post.marker").read_text(), "v1.2.4")
+
+    def test_pre_commands_see_changed_file_placeholder_literally(self):
+        result = self.invoke(["patch"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(pathlib.Path("pre.marker").read_text(), "{CHANGED_FILE}|")
+
+    def test_dry_run_previews_stage_command_without_touching_files(self):
+        result = self.invoke(["-n", "patch"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Would execute:", result.output)
+        self.assertFalse(pathlib.Path("stage.marker").exists())
+
+    def test_flow_without_stage_command_behaves_as_before(self):
+        _write_config(
+            f"""\
+            version: 3
+            default_flow: release
+            flows:
+              release:
+                name: Release
+                require_on_branch: main
+                post_commands:
+                  - {sys.executable} -c "open('post.marker', 'w').write('{{VERSION_TAG}}')"
+            discoverers:
+              - type: file-regexp
+                include: pkg/version.txt
+                version: 'version = "(?P<version>[^"]*)"'
+            """
+        )
+        result = self.invoke(["--allow-dirty-repository", "patch"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(pathlib.Path("stage.marker").exists())
+        self.assertEqual(pathlib.Path("post.marker").read_text(), "v1.2.4")
+
+
 if __name__ == "__main__":
     unittest.main()

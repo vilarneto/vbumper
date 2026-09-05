@@ -44,7 +44,7 @@
           "type": "string"
         },
         "variables": {
-          "description": "Arbitrary flow-specific data, each entry available to this flow's commands as a {NAME} placeholder. A project recalling this flow may merge its own `variables` on top, key-by-key. Keys may not be VERSION or VERSION_TAG, which are always reserved for vbumper's own substitutions.",
+          "description": "Arbitrary flow-specific data, each entry available to this flow's commands as a {NAME} placeholder. A project recalling this flow may merge its own `variables` on top, key-by-key. Keys may not be VERSION, VERSION_TAG, or CHANGED_FILE, which are always reserved for vbumper's own substitutions.",
           "type": "object",
           "additionalProperties": {
             "type": "string"
@@ -62,8 +62,12 @@
           },
           "default": []
         },
+        "stage_command": {
+          "description": "Optional command, run once per file vbumper actually wrote back this run (in order), with {CHANGED_FILE} substituted to that file's path. Runs after write-back and before post_commands. Omit to stage nothing automatically.",
+          "$ref": "#/$defs/stageCommand"
+        },
         "post_commands": {
-          "description": "Commands run, in order, after version files are written back. If any command fails, the flow aborts immediately and no further post_commands run.",
+          "description": "Commands run, in order, after version files are written back (and after stage_command, if set). If any command fails, the flow aborts immediately and no further post_commands run.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/command"
@@ -80,6 +84,14 @@
         "git checkout {RELEASE_BRANCH}",
         "git commit -m \"chore: bump version to {VERSION}\"",
         "git tag {VERSION_TAG}"
+      ]
+    },
+    "stageCommand": {
+      "description": "A single command, run once per changed file through the operating system's own command shell after placeholder substitution (/bin/sh on Unix-like systems, cmd.exe on Windows). Accepts everything `command` does, plus {CHANGED_FILE} (that invocation's file path) -- meaningless, and left unsubstituted, anywhere else. Substitution is verbatim -- no value is quoted or escaped on the command's behalf.",
+      "type": "string",
+      "minLength": 1,
+      "examples": [
+        "git add \"{CHANGED_FILE}\""
       ]
     }
   }

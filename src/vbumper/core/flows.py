@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from vbumper.config.flow import FlowDefinition
     from vbumper.config.root import VBumpConfig
+    from vbumper.core.containers.base import VersionContainer
     from vbumper.core.semver import SemVer
 
 
@@ -72,12 +73,19 @@ def substitute_placeholders(
     version: SemVer,
     version_tag_prefix: str,
     variables: dict[str, str] | None = None,
+    changed_file: str | None = None,
 ) -> str:
     """Replace the `{VERSION}`/`{VERSION_TAG}` placeholders, plus one `{NAME}` placeholder per
     entry in `variables` (see `substitute_variables`), in `command`. Substitution is verbatim --
-    no substituted value is quoted or escaped on the command's behalf."""
+    no substituted value is quoted or escaped on the command's behalf.
+
+    `changed_file`, when given, additionally substitutes `{CHANGED_FILE}` -- meaningful only for
+    `stage_command` (see `run_stage_command`); left as literal, unreplaced text otherwise, the
+    same as an unmatched custom `{NAME}` variable."""
 
     substitutions = {"{VERSION}": str(version), "{VERSION_TAG}": f"{version_tag_prefix}{version}"}
+    if changed_file is not None:
+        substitutions["{CHANGED_FILE}"] = changed_file
 
     command = substitute_variables(command, variables)
     for placeholder, value in substitutions.items():
@@ -152,6 +160,31 @@ def check_preconditions(flow_config: FlowDefinition, *, allow_dirty_repository: 
             )
 
 
+def _execute_or_preview(substituted: str, *, dry_run: bool) -> None:
+    """Either print `Would execute: ...` for `substituted` (dry-run), or actually run it through
+    the operating system's own command shell, raising `FlowCommandFailure` on a non-zero exit.
+
+    Shared by `run_commands` and `run_stage_command` so both follow identical execution/
+    dry-run/failure semantics."""
+
+    import rich_click as click
+
+    from vbumper.core.exceptions import FlowCommandFailure
+
+    if dry_run:
+        click.echo(f"Would execute: {substituted}")
+        return
+
+    env = os.environ | {"GIT_MERGE_AUTOEDIT": "no"}
+    result = subprocess.run(substituted, shell=True, env=env)
+    if result.returncode != 0:
+        raise FlowCommandFailure(
+            f"Command failed with exit code {result.returncode}: {substituted}",
+            command=substituted,
+            returncode=result.returncode,
+        )
+
+
 def run_commands(
     commands: list[str],
     *,
@@ -171,10 +204,6 @@ def run_commands(
     `--dry-run` prints `Would execute: ...` for each command instead of running it.
     """
 
-    import rich_click as click
-
-    from vbumper.core.exceptions import FlowCommandFailure
-
     for command in commands:
         substituted = substitute_placeholders(
             command,
@@ -182,19 +211,47 @@ def run_commands(
             version_tag_prefix=version_tag_prefix,
             variables=variables,
         )
+        _execute_or_preview(substituted, dry_run=dry_run)
 
-        if dry_run:
-            click.echo(f"Would execute: {substituted}")
+
+def run_stage_command(
+    stage_command: str | None,
+    containers: list[VersionContainer],
+    *,
+    version: SemVer,
+    version_tag_prefix: str,
+    variables: dict[str, str] | None = None,
+    dry_run: bool,
+) -> None:
+    """Run `stage_command` once per file-backed container in `containers` (in order), with
+    `{CHANGED_FILE}` substituted to that container's own `file_path`. A container whose
+    `file_path` is `None` (not file-backed) is skipped.
+
+    A no-op if `stage_command` is `None` -- vbumper never stages anything unless a flow opts in
+    explicitly, and never touches anything beyond the exact files it just wrote itself. Runs
+    strictly after write-back and before `post_commands`; see `vbumper.cli.bump._run_chain`.
+
+    `--dry-run` previews each would-be invocation via `Would execute: ...`, same as
+    `run_commands`, without running anything or requiring the containers to have actually been
+    written.
+    """
+
+    if stage_command is None:
+        return
+
+    for container in containers:
+        file_path = container.file_path
+        if file_path is None:
             continue
 
-        env = os.environ | {"GIT_MERGE_AUTOEDIT": "no"}
-        result = subprocess.run(substituted, shell=True, env=env)
-        if result.returncode != 0:
-            raise FlowCommandFailure(
-                f"Command failed with exit code {result.returncode}: {substituted}",
-                command=substituted,
-                returncode=result.returncode,
-            )
+        substituted = substitute_placeholders(
+            stage_command,
+            version=version,
+            version_tag_prefix=version_tag_prefix,
+            variables=variables,
+            changed_file=str(file_path),
+        )
+        _execute_or_preview(substituted, dry_run=dry_run)
 
 
 __all__ = [
@@ -203,6 +260,7 @@ __all__ = [
     "is_repository_dirty",
     "resolve_selected_flow",
     "run_commands",
+    "run_stage_command",
     "substitute_placeholders",
     "substitute_variables",
 ]

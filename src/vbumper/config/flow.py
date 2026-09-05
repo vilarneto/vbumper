@@ -16,14 +16,15 @@ FlowKey = Annotated[str, pydantic.StringConstraints(pattern=FLOW_KEY_PATTERN.pat
 #: substitution (`/bin/sh` on Unix-like systems, `cmd.exe` on Windows). May contain the
 #: placeholders `{VERSION}`, `{VERSION_TAG}`, and any name declared under a flow's own
 #: `variables:`, substituted at execution time -- substitution itself is not this model's concern.
-#: Substitution is verbatim: no value is quoted or escaped on the flow's behalf, so a command that
-#: relies on a substituted value being treated as a single shell word is responsible for its own
-#: quoting.
+#: `stage_command` additionally accepts `{CHANGED_FILE}`, meaningless anywhere else (see
+#: `FlowDefinition.stage_command`). Substitution is verbatim: no value is quoted or escaped on the
+#: flow's behalf, so a command that relies on a substituted value being treated as a single shell
+#: word is responsible for its own quoting.
 Command = Annotated[str, pydantic.Field(min_length=1)]
 
 #: Placeholder names reserved for vbumper's own substitutions -- a flow's `variables:` may not
 #: redefine these.
-RESERVED_VARIABLE_NAMES = frozenset({"VERSION", "VERSION_TAG"})
+RESERVED_VARIABLE_NAMES = frozenset({"VERSION", "VERSION_TAG", "CHANGED_FILE"})
 
 #: Key accepted in a flow's `variables:` mapping: an uppercase placeholder-style identifier, kept
 #: in sync with the `flowVariableName` definition in `vbumper-config.schema.json`.
@@ -34,14 +35,14 @@ VariableName = Annotated[str, pydantic.StringConstraints(pattern=VARIABLE_NAME_P
 #: is exactly what recalling an existing definition means adopting wholesale. Customizing them
 #: means defining a whole new flow (with no `recall:`) instead.
 _RECALL_INCOMPATIBLE_FIELDS = frozenset(
-    {"name", "require_on_branch", "pre_commands", "post_commands"}
+    {"name", "require_on_branch", "pre_commands", "stage_command", "post_commands"}
 )
 
 
 class FlowDefinition(pydantic.BaseModel):
     """A named Git release workflow: a sequence of pre-write-back commands, the version-file
     write-back itself (not represented here -- it always happens between the two command lists),
-    and a sequence of post-write-back commands.
+    an optional per-file staging command, and a sequence of post-write-back commands.
 
     No flow -- built-in or user-defined -- receives any special treatment from vbumper: every
     global option, precondition, and config value applies identically regardless of which flow
@@ -60,6 +61,7 @@ class FlowDefinition(pydantic.BaseModel):
     require_on_branch: str | None = None
     variables: dict[VariableName, str] = pydantic.Field(default_factory=dict)
     pre_commands: list[Command] = pydantic.Field(default_factory=list)
+    stage_command: Command | None = None
     post_commands: list[Command] = pydantic.Field(default_factory=list)
 
     @pydantic.field_validator("variables")

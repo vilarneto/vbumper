@@ -30,6 +30,7 @@ class TestResolveAllFlowsWithRecall(unittest.TestCase):
             require_on_branch="{DEVELOP_BRANCH}",
             variables={"DEVELOP_BRANCH": "develop", "RELEASE_BRANCH": "main"},
             pre_commands=["git checkout {RELEASE_BRANCH}"],
+            stage_command="git add {CHANGED_FILE}",
             post_commands=["git tag {VERSION_TAG}"],
         )
 
@@ -42,6 +43,7 @@ class TestResolveAllFlowsWithRecall(unittest.TestCase):
         flow = resolved["my-release"]
         self.assertEqual(flow.name, "global release")
         self.assertEqual(flow.pre_commands, ["git checkout {RELEASE_BRANCH}"])
+        self.assertEqual(flow.stage_command, "git add {CHANGED_FILE}")
         self.assertEqual(flow.post_commands, ["git tag {VERSION_TAG}"])
 
     def test_recall_merges_variables_key_by_key_onto_the_global_definition(self):
@@ -83,6 +85,10 @@ class TestFlowConfigRecallValidation(unittest.TestCase):
     def test_recall_with_post_commands_is_rejected(self):
         with self.assertRaises(pydantic.ValidationError):
             FlowConfig(recall="release", post_commands=["echo hi"])
+
+    def test_recall_with_stage_command_is_rejected(self):
+        with self.assertRaises(pydantic.ValidationError):
+            FlowConfig(recall="release", stage_command="git add {CHANGED_FILE}")
 
     def test_recall_with_name_is_rejected(self):
         with self.assertRaises(pydantic.ValidationError):

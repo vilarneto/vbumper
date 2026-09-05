@@ -9,6 +9,8 @@ import pydantic
 
 from vbumper.config.flow import FlowConfig
 from vbumper.config.root import VBumpConfig
+from vbumper.core.containers.base import VersionContainer
+from vbumper.core.containers.types import Versioned
 from vbumper.core.exceptions import (
     DirtyRepositoryError,
     FlowCommandFailure,
@@ -21,9 +23,29 @@ from vbumper.core.flows import (
     is_repository_dirty,
     resolve_selected_flow,
     run_commands,
+    run_stage_command,
     substitute_placeholders,
 )
 from vbumper.core.semver import SemVer
+
+
+class _FakeContainer(VersionContainer):
+    """Minimal concrete `VersionContainer` for `run_stage_command` tests: `file_path` is
+    whatever's given at construction (possibly `None`, to exercise the "not file-backed" case)."""
+
+    def __init__(self, file_path=None):
+        super().__init__(status=Versioned(value=SemVer.parse("1.0.0")))
+        self._file_path = file_path
+
+    @property
+    def file_path(self):
+        return self._file_path
+
+    def describe(self):
+        return f"Fake {self._file_path}"
+
+    def write(self):
+        pass
 
 
 class TestResolveSelectedFlow(unittest.TestCase):
@@ -74,6 +96,10 @@ class TestFlowConfigVariables(unittest.TestCase):
         with self.assertRaises(pydantic.ValidationError):
             FlowConfig(variables={"VERSION_TAG": "v1.2.3"})
 
+    def test_rejects_changed_file_as_a_variable_name(self):
+        with self.assertRaises(pydantic.ValidationError):
+            FlowConfig(variables={"CHANGED_FILE": "/tmp/x"})
+
     def test_accepts_non_reserved_variable_names(self):
         flow = FlowConfig(variables={"RELEASE_BRANCH": "main"})
         self.assertEqual(flow.variables, {"RELEASE_BRANCH": "main"})
@@ -112,6 +138,23 @@ class TestSubstitutePlaceholders(unittest.TestCase):
             "git checkout {RELEASE_BRANCH}", version=version, version_tag_prefix="v"
         )
         self.assertEqual(result, "git checkout {RELEASE_BRANCH}")
+
+    def test_substitutes_changed_file_when_given(self):
+        version = SemVer.parse("1.0.0")
+        result = substitute_placeholders(
+            "git add {CHANGED_FILE}",
+            version=version,
+            version_tag_prefix="v",
+            changed_file="/tmp/pyproject.toml",
+        )
+        self.assertEqual(result, "git add /tmp/pyproject.toml")
+
+    def test_leaves_changed_file_placeholder_untouched_when_unset(self):
+        version = SemVer.parse("1.0.0")
+        result = substitute_placeholders(
+            "git add {CHANGED_FILE}", version=version, version_tag_prefix="v"
+        )
+        self.assertEqual(result, "git add {CHANGED_FILE}")
 
 
 class _GitRepoTestCase(unittest.TestCase):
@@ -232,6 +275,103 @@ class TestRunCommands(unittest.TestCase):
         with self.assertRaises(FlowCommandFailure):
             run_commands(
                 ["exit 1", f"touch {shlex.quote(str(marker))}"],
+                version=self.version,
+                version_tag_prefix="v",
+                dry_run=False,
+            )
+        self.assertFalse(marker.exists())
+
+
+class TestRunStageCommand(unittest.TestCase):
+    def setUp(self):
+        self.version = SemVer.parse("1.2.3")
+
+    def test_none_stage_command_is_a_no_op(self):
+        marker = pathlib.Path(tempfile.mktemp())
+        self.addCleanup(lambda: marker.unlink(missing_ok=True))
+
+        run_stage_command(
+            None,
+            [_FakeContainer(file_path=pathlib.Path("a.txt"))],
+            version=self.version,
+            version_tag_prefix="v",
+            dry_run=False,
+        )
+        self.assertFalse(marker.exists())
+
+    def test_empty_container_list_is_a_no_op(self):
+        run_stage_command(
+            "exit 1",  # would raise if it ever actually ran
+            [],
+            version=self.version,
+            version_tag_prefix="v",
+            dry_run=False,
+        )  # no raise
+
+    def test_skips_containers_without_a_file_path(self):
+        marker = pathlib.Path(tempfile.mktemp())
+        self.addCleanup(lambda: marker.unlink(missing_ok=True))
+
+        run_stage_command(
+            f"echo {{CHANGED_FILE}} >> {shlex.quote(str(marker))}",
+            [_FakeContainer(file_path=None), _FakeContainer(file_path=pathlib.Path("only.txt"))],
+            version=self.version,
+            version_tag_prefix="v",
+            dry_run=False,
+        )
+        self.assertEqual(marker.read_text().strip(), "only.txt")
+
+    def test_runs_once_per_file_in_order_with_substitutions(self):
+        marker = pathlib.Path(tempfile.mktemp())
+        self.addCleanup(lambda: marker.unlink(missing_ok=True))
+
+        run_stage_command(
+            f"echo {{CHANGED_FILE}}:{{VERSION_TAG}} >> {shlex.quote(str(marker))}",
+            [
+                _FakeContainer(file_path=pathlib.Path("a.txt")),
+                _FakeContainer(file_path=pathlib.Path("b.txt")),
+            ],
+            version=self.version,
+            version_tag_prefix="v",
+            dry_run=False,
+        )
+        self.assertEqual(marker.read_text().splitlines(), ["a.txt:v1.2.3", "b.txt:v1.2.3"])
+
+    def test_dry_run_prints_would_execute_per_file_and_does_not_run(self):
+        import rich_click as click
+        from click.testing import CliRunner
+
+        @click.command()
+        def _invoke_dry_run():
+            run_stage_command(
+                "git add {CHANGED_FILE}",
+                [
+                    _FakeContainer(file_path=pathlib.Path("a.txt")),
+                    _FakeContainer(file_path=pathlib.Path("b.txt")),
+                ],
+                version=self.version,
+                version_tag_prefix="v",
+                dry_run=True,
+            )
+
+        result = CliRunner().invoke(_invoke_dry_run, [])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Would execute: git add a.txt", result.output)
+        self.assertIn("Would execute: git add b.txt", result.output)
+
+    def test_failing_invocation_raises_and_stops_the_sequence(self):
+        marker = pathlib.Path(tempfile.mktemp())
+        self.addCleanup(lambda: marker.unlink(missing_ok=True))
+
+        # Fails on the first file (a.txt), so the marker touched only for b.txt must never appear.
+        command = f"[ {{CHANGED_FILE}} = a.txt ] && exit 1; touch {shlex.quote(str(marker))}"
+        with self.assertRaises(FlowCommandFailure):
+            run_stage_command(
+                command,
+                [
+                    _FakeContainer(file_path=pathlib.Path("a.txt")),
+                    _FakeContainer(file_path=pathlib.Path("b.txt")),
+                ],
                 version=self.version,
                 version_tag_prefix="v",
                 dry_run=False,

@@ -16,6 +16,7 @@ flows:
     pre_commands:
       - git checkout {RELEASE_BRANCH}
       - "git merge {DEVELOP_BRANCH} -m \"chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'\""
+    stage_command: git add "{CHANGED_FILE}"
     post_commands:
       - 'git commit -m "chore: bump version to {VERSION}"'
       - git tag {VERSION_TAG}

@@ -60,6 +60,10 @@ class TextFileContentsVersionContainer(VersionContainer):
         except ValueError:
             return None
 
+    @property
+    def file_path(self) -> pathlib.Path:
+        return self._file_path
+
     def describe(self) -> str:
         return describe_file_container(self._file_path)
 
@@ -121,6 +125,10 @@ class JSONFileVersionContainer(VersionContainer):
             return SemVer.parse(raw)
         except ValueError:
             return None
+
+    @property
+    def file_path(self) -> pathlib.Path:
+        return self._file_path
 
     def describe(self) -> str:
         return describe_file_container(self._file_path)

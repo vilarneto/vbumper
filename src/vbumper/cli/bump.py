@@ -238,7 +238,12 @@ def print_() -> Step:
 def _run_chain(steps: list[Step], **_kwargs: object) -> None:
     from vbumper.core.containers.types import Versioned
     from vbumper.core.exceptions import WriteBackFailure
-    from vbumper.core.flows import check_preconditions, resolve_selected_flow, run_commands
+    from vbumper.core.flows import (
+        check_preconditions,
+        resolve_selected_flow,
+        run_commands,
+        run_stage_command,
+    )
     from vbumper.core.resolution import containers_to_update, discover_containers
 
     from ._describe import describe_status as _describe_status
@@ -305,6 +310,14 @@ def _run_chain(steps: list[Step], **_kwargs: object) -> None:
                 variables=flow_config.variables,
                 dry_run=True,
             )
+            run_stage_command(
+                flow_config.stage_command,
+                changed_containers,
+                version=state.current_version,
+                version_tag_prefix=config.version_tag_prefix,
+                variables=flow_config.variables,
+                dry_run=True,
+            )
             run_commands(
                 flow_config.post_commands,
                 version=state.current_version,
@@ -344,6 +357,14 @@ def _run_chain(steps: list[Step], **_kwargs: object) -> None:
 
     if selected_flow is not None:
         _, flow_config = selected_flow
+        run_stage_command(
+            flow_config.stage_command,
+            written,
+            version=state.current_version,
+            version_tag_prefix=config.version_tag_prefix,
+            variables=flow_config.variables,
+            dry_run=False,
+        )
         run_commands(
             flow_config.post_commands,
             version=state.current_version,

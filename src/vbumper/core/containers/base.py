@@ -1,4 +1,5 @@
 import abc
+import pathlib
 
 from .types import VersionStatus
 
@@ -55,6 +56,15 @@ class VersionContainer(abc.ABC):
     def has_changed(self) -> bool:
         """Return `True` if the version container has been modified, `False` otherwise."""
         return self._status != self._orig_status
+
+    @property
+    def file_path(self) -> pathlib.Path | None:
+        """The filesystem path this container is backed by, or `None` if it isn't file-backed.
+
+        Not every container type is file-based (e.g. a future DB-/REST-backed one), so this is a
+        plain, non-abstract property defaulting to `None` rather than something every subclass
+        must implement."""
+        return None
 
     @abc.abstractmethod
     def describe(self) -> str:
