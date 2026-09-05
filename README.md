@@ -252,7 +252,7 @@ Global options apply to the whole invocation and must come before the first subc
 |-------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `init`                  | Scaffold a starting `.vbump.yaml`, pre-populated with a `- type: ...` entry for each built-in that finds something in the target directory. Refuses to overwrite an existing config file. |
 | `list`                  | Show every discovered container and its current version (or `(unversioned)` / `(invalid version)` / `(mismatched versions)`).                                                             |
-| `print`                 | Print the single common version, or nothing if no container is versioned yet.                                                                                                             |
+| `print`                 | Print the single common version, or nothing if no container is versioned yet. See below for what chaining it with other commands does.                                                   |
 | `patch`                 | `1.2.3` → `1.2.4`                                                                                                                                                                         |
 | `minor`                 | `1.2.3` → `1.3.0`                                                                                                                                                                         |
 | `major`                 | `1.2.3` → `2.0.0`                                                                                                                                                                         |
@@ -264,6 +264,8 @@ Global options apply to the whole invocation and must come before the first subc
 | `sync`                  | Write the single highest version found across all discovered containers back over every versioned and unversioned one, asking for confirmation first. See below.                          |
 
 Chaining works left to right: `vbump minor rc` first computes the minor bump, then applies a prerelease bump on top of the result, and writes the final version once, at the end.
+
+`print` anywhere in a chain makes the whole invocation read-only: `vbump prerelease print` computes the version a real `prerelease` would move to and prints it, but writes nothing back and runs no Git workflow — regardless of where `print` sits in the chain, not just at the end.
 
 If no versioned container exists at all (every container found is unversioned), bump commands have no base value to increment from and will error out; `set` still works, since it doesn’t need one.
 
@@ -371,15 +373,15 @@ flows:
     require_on_branch: "{DEVELOP_BRANCH}"
     pre_commands:
       - git checkout {RELEASE_BRANCH}
-      - git merge {DEVELOP_BRANCH} -m "chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'"
+      - "git merge {DEVELOP_BRANCH} -m \"chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'\""
     post_commands:
-      - git commit -m "chore: bump version to {VERSION}"
+      - 'git commit -m "chore: bump version to {VERSION}"'
       - git tag {VERSION_TAG}
       - uv lock
       - git add uv.lock
-      - git commit -m "chore: update uv.lock"
+      - 'git commit -m "chore: update uv.lock"'
       - git checkout {DEVELOP_BRANCH}
-      - git merge {RELEASE_BRANCH} -m "chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'"
+      - "git merge {RELEASE_BRANCH} -m \"chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'\""
 
 default_flow: release
 ```
@@ -433,12 +435,12 @@ flows:
       RELEASE_BRANCH: main
     pre_commands:
       - git checkout {RELEASE_BRANCH}
-      - git merge {DEVELOP_BRANCH} -m "chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'"
+      - "git merge {DEVELOP_BRANCH} -m \"chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'\""
     post_commands:
-      - git commit -m "chore: bump version to {VERSION}"
+      - 'git commit -m "chore: bump version to {VERSION}"'
       - git tag {VERSION_TAG}
       - git checkout {DEVELOP_BRANCH}
-      - git merge {RELEASE_BRANCH} -m "chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'"
+      - "git merge {RELEASE_BRANCH} -m \"chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'\""
 ```
 
 ```yaml

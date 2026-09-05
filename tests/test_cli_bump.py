@@ -98,6 +98,17 @@ class TestBasicBumps(BumpCLITestCase):
         # `print` alone must not write anything back.
         self.assertEqual(self._read(), 'version = "1.2.3"\n')
 
+    def test_print_after_a_bump_command_prints_the_computed_version_without_writing(self):
+        result = self.invoke(["prerelease", "print"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(result.output.strip(), "1.2.4-rc.1")
+        self.assertEqual(self._read(), 'version = "1.2.3"\n')
+
+    def test_print_before_a_bump_command_still_makes_the_whole_chain_read_only(self):
+        result = self.invoke(["print", "patch"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(self._read(), 'version = "1.2.3"\n')
+
     def test_dry_run_changes_nothing_on_disk(self):
         result = self.invoke(["-n", "patch"])
         self.assertEqual(result.exit_code, 0, result.output)

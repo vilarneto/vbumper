@@ -15,14 +15,14 @@ flows:
     require_on_branch: "{DEVELOP_BRANCH}"
     pre_commands:
       - git checkout {RELEASE_BRANCH}
-      - git merge {DEVELOP_BRANCH} -m "chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'"
+      - "git merge {DEVELOP_BRANCH} -m \"chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'\""
     post_commands:
-      - git commit -m "chore: bump version to {VERSION}"
+      - 'git commit -m "chore: bump version to {VERSION}"'
       - git tag {VERSION_TAG}
       - uv lock
       - git add uv.lock
-      - git commit -m "chore: update uv.lock"
+      - 'git commit -m "chore: update uv.lock"'
       - git checkout {DEVELOP_BRANCH}
-      - git merge {RELEASE_BRANCH} -m "chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'"
+      - "git merge {RELEASE_BRANCH} -m \"chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'\""
 
 default_flow: git-main

@@ -3,9 +3,11 @@
 
 Each command returns a `Step` closure rather than doing any work itself; `_run_chain` (the
 group's `result_callback`) runs every returned step, in the order given on the command line,
-against one shared `BumpChainState`, then writes back whatever changed. This mirrors the legacy
-CLI's chain-group shape (`@click.group(chain=True)`) while computing a single aggregate
-"current version" across all discovered containers instead of bumping each file independently.
+against one shared `BumpChainState`, then writes back whatever changed -- unless `print` was
+anywhere in the chain, which makes the whole invocation read-only (see `print_`). This mirrors
+the legacy CLI's chain-group shape (`@click.group(chain=True)`) while computing a single
+aggregate "current version" across all discovered containers instead of bumping each file
+independently.
 """
 
 import dataclasses
@@ -29,6 +31,7 @@ class BumpChainState:
     current_version: SemVer | None = None
     resolved: bool = False
     changed: bool = False
+    read_only: bool = False
 
 
 Step = Callable[[BumpChainState], None]
@@ -215,9 +218,15 @@ def set_(version: str) -> Step:
 
 @root_grp.command("print")
 def print_() -> Step:
-    """Print the single common version, or nothing if no container is versioned."""
+    """Print the single common version, or nothing if no container is versioned.
+
+    `print` anywhere in a chain makes the whole invocation read-only: any bump-family command
+    chained alongside it still computes what it would produce (so `prerelease print` prints the
+    version a real `prerelease` would move to), but nothing is written back and no Git workflow
+    runs, regardless of position in the chain."""
 
     def step(state: BumpChainState) -> None:
+        state.read_only = True
         version = _resolve_lazily(state)
         if version is not None:
             click.echo(str(version))
@@ -252,6 +261,12 @@ def _run_chain(steps: list[Step], **_kwargs: object) -> None:
 
     for step in callable_steps:
         step(state)
+
+    if state.read_only:
+        # `print` was somewhere in the chain -- report only, via its own step's `click.echo`
+        # above. No write-back, no flow preconditions/commands, regardless of what else the
+        # chain computed.
+        return
 
     if not state.changed:
         return
