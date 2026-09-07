@@ -26,9 +26,9 @@ def _target_config_path(dir_option: str) -> pathlib.Path:
 
 
 def _render_config(detected: list[tuple[str, list[str]]]) -> str:
-    from vbumper.config.root import CONFIG_VERSION
+    from vbumper.config.root import CONFIG_VERSION, config_header_comment
 
-    lines = [f"version: {CONFIG_VERSION}", ""]
+    lines = [config_header_comment(), f"version: {CONFIG_VERSION}", ""]
     if detected:
         lines.append("discoverers:")
         for type_name, descriptions in detected:
