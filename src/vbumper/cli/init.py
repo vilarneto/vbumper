@@ -25,44 +25,6 @@ def _target_config_path(dir_option: str) -> pathlib.Path:
     return pathlib.Path(dir_option) / ".vbump.yaml"
 
 
-def _detect_builtin_types(dir_option: str) -> list[tuple[str, list[str]]]:
-    """Return, for every registered discoverer type that (a) needs no user-supplied parameters to
-    construct, and (b) actually discovers something under `dir_option`, a pair of its `type:`
-    string and the `describe()` of each container it matched (used to annotate the scaffolded
-    entry with what it was matched against). Order follows plugin registration order, which is
-    deterministic.
-
-    Applies the same built-in `exclude:` defaults (`.venv/`, `node_modules/`, ...) a real run
-    would -- there's no project-specific `exclude:` to add on top yet, since this scan is what's
-    about to produce the config file that could declare one, but skipping the defaults entirely
-    would mean dependencies vendored/installed under an excluded directory (a `setup.py` inside
-    `.venv/`, say) could get picked up as false positives."""
-
-    from vbumper.config.root import default_exclude_patterns
-    from vbumper.core.plugins.installer import iter_registered_config_classes
-
-    dir_root = pathlib.Path(dir_option)
-    exclude_patterns = default_exclude_patterns()
-    detected: list[tuple[str, list[str]]] = []
-
-    for config_cls in iter_registered_config_classes():
-        try:
-            config_instance = config_cls.from_config_dict({})
-        except Exception:
-            # Requires parameters this scan can't guess (e.g. `file-regexp`'s `include:`) --
-            # not an auto-detectable built-in, skip it silently.
-            continue
-
-        discoverer = config_instance.create_discoverer(
-            path_exclude_patterns=exclude_patterns, dir_root=dir_root
-        )
-        descriptions = [container.describe() for container in discoverer.discover()]
-        if descriptions:
-            detected.append((config_cls.get_type(), descriptions))
-
-    return detected
-
-
 def _render_config(detected: list[tuple[str, list[str]]]) -> str:
     from vbumper.config.root import CONFIG_VERSION
 
@@ -86,6 +48,7 @@ def init() -> None:
     match files already present."""
 
     from vbumper.config.load import find_config_path
+    from vbumper.core.detect import detect_builtin_discoverers
 
     from .context import get_options
 
@@ -96,7 +59,7 @@ def init() -> None:
     if existing is not None:
         raise click.UsageError(f"{existing} already exists -- not overwriting it.")
 
-    detected = _detect_builtin_types(options.dir)
+    detected = detect_builtin_discoverers(pathlib.Path(options.dir))
     contents = _render_config(detected)
 
     if options.dry_run:
