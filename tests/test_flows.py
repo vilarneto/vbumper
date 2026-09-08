@@ -7,7 +7,7 @@ import unittest
 
 import pydantic
 
-from vbumper.config.flow import FlowConfig
+from vbumper.config.flow import FlowDefinition
 from vbumper.config.root import VBumpConfig
 from vbumper.core.containers.base import VersionContainer
 from vbumper.core.containers.types import Versioned
@@ -57,8 +57,8 @@ class TestResolveSelectedFlow(unittest.TestCase):
         self.config = VBumpConfig(
             default_flow="flow-a",
             flows={
-                "flow-a": FlowConfig(name="main bump"),
-                "flow-b": FlowConfig(name="git flow"),
+                "flow-a": FlowDefinition(name="main bump"),
+                "flow-b": FlowDefinition(name="git flow"),
             },
         )
 
@@ -87,21 +87,21 @@ class TestResolveSelectedFlow(unittest.TestCase):
             resolve_selected_flow(self.config, flow="does-not-exist", no_flow=False)
 
 
-class TestFlowConfigVariables(unittest.TestCase):
+class TestFlowDefinitionVariables(unittest.TestCase):
     def test_rejects_version_as_a_variable_name(self):
         with self.assertRaises(pydantic.ValidationError):
-            FlowConfig(variables={"VERSION": "1.2.3"})
+            FlowDefinition(variables={"VERSION": "1.2.3"})
 
     def test_rejects_version_tag_as_a_variable_name(self):
         with self.assertRaises(pydantic.ValidationError):
-            FlowConfig(variables={"VERSION_TAG": "v1.2.3"})
+            FlowDefinition(variables={"VERSION_TAG": "v1.2.3"})
 
     def test_rejects_changed_file_as_a_variable_name(self):
         with self.assertRaises(pydantic.ValidationError):
-            FlowConfig(variables={"CHANGED_FILE": "/tmp/x"})
+            FlowDefinition(variables={"CHANGED_FILE": "/tmp/x"})
 
     def test_accepts_non_reserved_variable_names(self):
-        flow = FlowConfig(variables={"RELEASE_BRANCH": "main"})
+        flow = FlowDefinition(variables={"RELEASE_BRANCH": "main"})
         self.assertEqual(flow.variables, {"RELEASE_BRANCH": "main"})
 
 
@@ -196,38 +196,40 @@ class TestCheckPreconditions(_GitRepoTestCase):
     def test_clean_tree_and_matching_branch_passes(self):
         branch = current_branch()
         check_preconditions(
-            FlowConfig(require_on_branch=branch), allow_dirty_repository=False
+            FlowDefinition(require_on_branch=branch), allow_dirty_repository=False
         )  # no raise
 
     def test_dirty_tree_raises_without_override(self):
         (self.repo_dir / "README.md").write_text("changed\n")
         with self.assertRaises(DirtyRepositoryError):
-            check_preconditions(FlowConfig(), allow_dirty_repository=False)
+            check_preconditions(FlowDefinition(), allow_dirty_repository=False)
 
     def test_dirty_tree_allowed_with_override(self):
         (self.repo_dir / "README.md").write_text("changed\n")
-        check_preconditions(FlowConfig(), allow_dirty_repository=True)  # no raise
+        check_preconditions(FlowDefinition(), allow_dirty_repository=True)  # no raise
 
     def test_wrong_branch_raises(self):
         with self.assertRaises(WrongBranchError):
             check_preconditions(
-                FlowConfig(require_on_branch="does-not-exist"), allow_dirty_repository=False
+                FlowDefinition(require_on_branch="does-not-exist"), allow_dirty_repository=False
             )
 
     def test_no_require_on_branch_skips_branch_check(self):
-        check_preconditions(FlowConfig(require_on_branch=None), allow_dirty_repository=False)
+        check_preconditions(FlowDefinition(require_on_branch=None), allow_dirty_repository=False)
 
     def test_require_on_branch_is_substituted_against_variables(self):
         branch = current_branch()
         check_preconditions(
-            FlowConfig(require_on_branch="{DEVELOP_BRANCH}", variables={"DEVELOP_BRANCH": branch}),
+            FlowDefinition(
+                require_on_branch="{DEVELOP_BRANCH}", variables={"DEVELOP_BRANCH": branch}
+            ),
             allow_dirty_repository=False,
         )  # no raise
 
     def test_require_on_branch_placeholder_mismatch_raises(self):
         with self.assertRaises(WrongBranchError):
             check_preconditions(
-                FlowConfig(
+                FlowDefinition(
                     require_on_branch="{DEVELOP_BRANCH}",
                     variables={"DEVELOP_BRANCH": "does-not-exist"},
                 ),

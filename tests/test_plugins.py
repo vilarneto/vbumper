@@ -47,9 +47,10 @@ class TestInstallPluginConfigClasses(PluginRegistryTestCase):
 
 
 class TestStockPluginContributesNoFlows(unittest.TestCase):
-    """Flows are never plugin-contributed -- a named flow comes from a project's own `flows:` or
-    from `~/.vbumpconfig.yaml` (see `vbumper.config.flow.FlowConfig.recall`). `CorePlugin` (and
-    `VBumpPluginProtocol` in general) has no `iter_flows` at all."""
+    """Flows are never plugin-contributed -- a named flow comes only from a project's own
+    `flows:` (`~/.vbumpconfig.yaml` is a template library `vbump flow add`/`vbump init --flows`
+    can copy from, never a runtime source). `CorePlugin` (and `VBumpPluginProtocol` in general)
+    has no `iter_flows` at all."""
 
     def test_core_plugin_has_no_iter_flows(self):
         self.assertFalse(hasattr(CorePlugin(), "iter_flows"))

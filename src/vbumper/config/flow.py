@@ -31,13 +31,6 @@ RESERVED_VARIABLE_NAMES = frozenset({"VERSION", "VERSION_TAG", "CHANGED_FILE"})
 VARIABLE_NAME_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
 VariableName = Annotated[str, pydantic.StringConstraints(pattern=VARIABLE_NAME_PATTERN.pattern)]
 
-#: `FlowConfig` fields that may not accompany `recall:` -- these define what a flow *does*, which
-#: is exactly what recalling an existing definition means adopting wholesale. Customizing them
-#: means defining a whole new flow (with no `recall:`) instead.
-_RECALL_INCOMPATIBLE_FIELDS = frozenset(
-    {"name", "require_on_branch", "pre_commands", "stage_command", "post_commands"}
-)
-
 
 class FlowDefinition(pydantic.BaseModel):
     """A named Git release workflow: a sequence of pre-write-back commands, the version-file
@@ -51,8 +44,11 @@ class FlowDefinition(pydantic.BaseModel):
     The engine code that enforces/substitutes them is the same for every flow.
 
     This is the shape a flow's *definition* takes, whether written directly under a project's own
-    `flows:` or under `~/.vbumpconfig.yaml`'s `flows:` -- a definition never itself refers to
-    another flow (see `FlowConfig` for the one place that's possible).
+    `flows:` or under `~/.vbumpconfig.yaml`'s `flows:`. The two files play different roles --
+    a project's own `flows:` is what `bump` actually resolves against; `~/.vbumpconfig.yaml`'s
+    `flows:` is a template library, only ever read by `vbump flow add`/`vbump init --flows` to
+    copy a flow into a project's own config -- but the shape of one flow's definition is identical
+    either way, and neither can refer to the other at runtime.
     """
 
     model_config = pydantic.ConfigDict(frozen=True, extra="forbid")
@@ -76,37 +72,11 @@ class FlowDefinition(pydantic.BaseModel):
         return value
 
 
-class FlowConfig(FlowDefinition):
-    """A project's own `flows:` entry: either a full `FlowDefinition` (as above), or -- when
-    `recall` is set -- a reference to a flow defined under `~/.vbumpconfig.yaml`'s `flows:`,
-    carrying only `variables` to merge onto that definition's own. See
-    `vbumper.config.root.resolve_all_flows` for how a `recall` entry is resolved.
-
-    `recall` never appears on a `FlowDefinition` itself -- a recalled flow cannot in turn recall
-    another one."""
-
-    recall: FlowKey | None = None
-
-    @pydantic.model_validator(mode="after")
-    def _forbid_definition_fields_alongside_recall(self) -> "FlowConfig":
-        if self.recall is None:
-            return self
-
-        fields_set = self.model_fields_set & _RECALL_INCOMPATIBLE_FIELDS
-        if fields_set:
-            raise ValueError(
-                f"recall: {', '.join(sorted(fields_set))} cannot be set alongside recall --"
-                f" those come from the recalled flow itself; only variables may be set here"
-            )
-        return self
-
-
 __all__ = [
     "FLOW_KEY_PATTERN",
     "RESERVED_VARIABLE_NAMES",
     "VARIABLE_NAME_PATTERN",
     "Command",
-    "FlowConfig",
     "FlowDefinition",
     "FlowKey",
     "VariableName",

@@ -1,10 +1,13 @@
-"""Loading `~/.vbumpconfig.yaml`: an optional, per-user file holding reusable named flows a
-project's own `.vbump.yaml` can pull in by name (see `FlowConfig.recall`) rather than redefining
-the same flow in every project.
+"""Loading `~/.vbumpconfig.yaml`: an optional, per-user file holding reusable named flow
+*templates*, so the same flow needn't be redefined by hand in every project.
 
-A single fixed location is checked -- no directory is searched, and no other file name or
-location is recognized. A project that doesn't use `recall:` at all is entirely unaffected by
-whether this file exists or what it contains.
+This file is a template library only -- it is never consulted at `bump` time (see
+`vbumper.core.flows.resolve_selected_flow`, which looks only at a project's own `flows:`). It is
+read solely by `vbump flow add`/`vbump init --flows`, which copy a named template into a
+project's own `.vbump.yaml` as a full, standalone flow. A single fixed location is checked -- no
+directory is searched, and no other file name or location is recognized. A project that has never
+run `flow add`/`init --flows` is entirely unaffected by whether this file exists or what it
+contains.
 """
 
 from pathlib import Path
@@ -20,9 +23,9 @@ GLOBAL_CONFIG_VERSION = 3
 
 
 class GlobalConfig(pydantic.BaseModel):
-    """Root of `~/.vbumpconfig.yaml`. Every flow here is a full `FlowDefinition` -- one cannot set
-    `recall:` (that field doesn't exist on `FlowDefinition` at all), so a global flow can never
-    itself refer to another one."""
+    """Root of `~/.vbumpconfig.yaml`. Every flow here is a full, standalone `FlowDefinition` --
+    a template `vbump flow add`/`vbump init --flows` can copy into a project, never something a
+    project references live."""
 
     model_config = pydantic.ConfigDict(frozen=True, extra="forbid")
 

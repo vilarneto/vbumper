@@ -16,3 +16,10 @@ drift out of sync with the actual CLI.
 .. click:: vbumper.cli._grp:root_grp
    :prog: vbump
    :nested: full
+
+``vbump flow add`` isn't a true Click subcommand of ``flow`` above (see
+:mod:`vbumper.cli.flow`'s docstring for why), so ``:nested: full`` can't reach its own options --
+documented directly instead, from the same underlying command object:
+
+.. click:: vbumper.cli.flow:add_command
+   :prog: vbump flow add

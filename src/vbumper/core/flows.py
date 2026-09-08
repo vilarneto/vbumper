@@ -1,4 +1,4 @@
-"""The Git release-workflow engine: resolving which `FlowConfig` (if any) a run should use, its
+"""The Git release-workflow engine: resolving which `FlowDefinition` (if any) a run should use, its
 preconditions (clean working tree, starting branch), and executing its `pre_commands`/
 `post_commands` around write-back.
 
@@ -26,13 +26,16 @@ def resolve_selected_flow(
     config's `default_flow`. Returns `(key, FlowDefinition)`, or `None` if no flow applies.
 
     `--no-flow` always wins over `--flow`/`default_flow`. An explicit `--flow NAME` (or a
-    `default_flow`) that isn't among the project's own `flows:` (resolved against
-    `~/.vbumpconfig.yaml` for any `recall:` entries) is an error; an unset `default_flow` with no
-    `--flow` simply means no flow runs (matches the implicit "no flow selected" case).
+    `default_flow`) that isn't among the project's own `flows:` is an error; an unset
+    `default_flow` with no `--flow` simply means no flow runs (matches the implicit "no flow
+    selected" case).
+
+    This looks only at the project's own `flows:` -- `~/.vbumpconfig.yaml` is never consulted
+    here. It's a template library read only by `vbump flow add`/`vbump init --flows` to copy a
+    flow into a project's own config beforehand; a run never depends on it existing or matching
+    anything.
     """
 
-    from vbumper.config.global_config import load_global_config
-    from vbumper.config.root import resolve_all_flows
     from vbumper.core.exceptions import UnknownFlowError
 
     if no_flow:
@@ -42,11 +45,10 @@ def resolve_selected_flow(
     if key is None:
         return None
 
-    all_flows = resolve_all_flows(config.flows, load_global_config().flows)
-    flow_config = all_flows.get(key)
+    flow_config = config.flows.get(key)
     if flow_config is None:
         raise UnknownFlowError(
-            f"Unknown flow {key!r} (available flows: {', '.join(sorted(all_flows)) or '(none)'})"
+            f"Unknown flow {key!r} (available flows: {', '.join(sorted(config.flows)) or '(none)'})"
         )
 
     return key, flow_config
@@ -57,8 +59,9 @@ def substitute_variables(text: str, variables: dict[str, str] | None) -> str:
     without a matching entry is left as literal, unreplaced text.
 
     The one substitution rule shared by every placeholder-bearing flow field -- command arguments
-    (via `substitute_placeholders`) and `FlowConfig.require_on_branch` (via `check_preconditions`)
-    both go through this, so a flow's `variables:` is a single source of truth for a name like
+    (via `substitute_placeholders`) and `FlowDefinition.require_on_branch` (via
+    `check_preconditions`) both go through this, so a flow's `variables:` is a single source of
+    truth for a name like
     `{DEVELOP_BRANCH}` wherever it's referenced, not a value that can drift between two independent
     copies."""
 

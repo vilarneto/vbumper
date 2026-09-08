@@ -7,6 +7,7 @@
 # standard, documented way sphinx-click handles a Click app whose commands are split across
 # modules; it doesn't touch `vbumper`'s own lazy-import structure, only this docs build.
 import vbumper.cli.bump
+import vbumper.cli.flow
 import vbumper.cli.init
 import vbumper.cli.list_
 import vbumper.cli.sync

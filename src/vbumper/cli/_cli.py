@@ -37,7 +37,7 @@ def cli():
 
     # imported for their `@root_grp.command` registration side effect
     # noinspection PyUnusedImports
-    from . import bump, init, list_, sync
+    from . import bump, flow, init, list_, sync
     from ._grp import root_grp
 
     warnings.showwarning = _show_warning_plainly

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vbumper.dev/schema/vbumper-global-config.schema.json",
   "title": "vbumper global configuration",
-  "description": "Schema for the optional, per-user `~/.vbumpconfig.yaml` file: reusable named flows a project's own `.vbump.yaml` can pull in by name via `recall:` instead of redefining the same flow in every project. This file is never required to exist -- a project that never uses `recall:` is unaffected by its absence or content.",
+  "description": "Schema for the optional, per-user `~/.vbumpconfig.yaml` file: a template library of reusable named flows, copied into a project's own `.vbump.yaml` by `vbump flow add`/`vbump init --flows` instead of redefining the same flow by hand in every project. Never read at bump time. This file is never required to exist -- a project that has never run `flow add`/`init --flows` is unaffected by its absence or content.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -14,7 +14,7 @@
       "const": 3
     },
     "flows": {
-      "description": "Named flow definitions, each recallable from any project's own `.vbump.yaml` via `flows.<key>.recall`. A flow here is always a full definition -- it cannot itself set `recall`, so a global flow can never refer to another one.",
+      "description": "Named flow templates, each copyable into any project's own `.vbump.yaml` via `vbump flow add NAME`/`vbump init --flows=NAME`. A flow here is always a full definition.",
       "type": "object",
       "propertyNames": {
         "$ref": "#/$defs/flowKey"
@@ -44,7 +44,7 @@
           "type": "string"
         },
         "variables": {
-          "description": "Arbitrary flow-specific data, each entry available to this flow's commands as a {NAME} placeholder. A project recalling this flow may merge its own `variables` on top, key-by-key. Keys may not be VERSION, VERSION_TAG, or CHANGED_FILE, which are always reserved for vbumper's own substitutions.",
+          "description": "Arbitrary flow-specific data, each entry available to this flow's commands as a {NAME} placeholder. `vbump flow add NAME --set KEY=value` can override an entry at copy time. Keys may not be VERSION, VERSION_TAG, or CHANGED_FILE, which are always reserved for vbumper's own substitutions.",
           "type": "object",
           "additionalProperties": {
             "type": "string"

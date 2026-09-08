@@ -23,7 +23,7 @@
       "$ref": "#/$defs/flowKey"
     },
     "flows": {
-      "description": "Named Git release workflows. A flow is a sequence of pre-write-back commands, the version-file write-back itself, and a sequence of post-write-back commands. No flow receives any special treatment from vbumper: every option, precondition, and config value applies identically regardless of which flow (if any) is selected. Each entry is either a full definition, or a `recall` of a flow defined in `~/.vbumpconfig.yaml` with its own `variables` merged on top -- see `flowDefinition`.",
+      "description": "Named Git release workflows. A flow is a sequence of pre-write-back commands, the version-file write-back itself, and a sequence of post-write-back commands. No flow receives any special treatment from vbumper: every option, precondition, and config value applies identically regardless of which flow (if any) is selected. Each entry is a full, standalone definition -- see `flowDefinition`. `vbump flow add NAME`/`vbump init --flows=NAME` can copy one in from `~/.vbumpconfig.yaml`'s own `flows:` (a template library, never read at bump time).",
       "type": "object",
       "propertyNames": {
         "$ref": "#/$defs/flowKey"
@@ -68,62 +68,42 @@
       "pattern": "^[a-z][a-z0-9-]*$"
     },
     "flowDefinition": {
-      "description": "Either a full flow definition, or a `recall` of a flow defined in `~/.vbumpconfig.yaml` with only `variables` alongside it.",
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "recall"
-          ],
-          "properties": {
-            "recall": {
-              "description": "Key of a flow defined under `~/.vbumpconfig.yaml`'s `flows:`. Adopts that definition wholesale (name, require_on_branch, pre_commands, stage_command, post_commands); this entry may only additionally set `variables`, merged key-by-key onto the recalled definition's own. Referring to a name not defined there is a configuration error.",
-              "$ref": "#/$defs/flowKey"
-            },
-            "variables": {
-              "$ref": "#/$defs/flowVariables"
-            }
-          }
+      "description": "A full flow definition -- whether written directly under a project's own `flows:`, under `~/.vbumpconfig.yaml`'s `flows:` (a template library), or copied from the latter into the former by `vbump flow add`/`vbump init --flows`.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Human-readable display name for this flow (used in help/list output). Purely cosmetic; the flow key is what --flow=NAME matches against.",
+          "type": "string"
         },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "name": {
-              "description": "Human-readable display name for this flow (used in help/list output). Purely cosmetic; the flow key is what --flow=NAME matches against.",
-              "type": "string"
-            },
-            "require_on_branch": {
-              "description": "Git branch that must be checked out for this flow to run (e.g. \"develop\", or a {NAME} placeholder such as \"{DEVELOP_BRANCH}\" resolved against this flow's own variables). Omit to allow the flow to run from any branch.",
-              "type": "string"
-            },
-            "variables": {
-              "$ref": "#/$defs/flowVariables"
-            },
-            "pre_commands": {
-              "description": "Commands run, in order, before version files are written back. If any command fails, the flow aborts immediately and no write-back or post_commands run.",
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/command"
-              },
-              "default": []
-            },
-            "stage_command": {
-              "description": "Optional command, run once per file vbumper actually wrote back this run (in order), with {CHANGED_FILE} substituted to that file's path. Runs after write-back and before post_commands. Omit to stage nothing automatically -- vbumper never stages/adds anything on its own unless a flow opts in here, and this only ever touches the exact files vbumper itself wrote, never a blanket 'add everything dirty'.",
-              "$ref": "#/$defs/stageCommand"
-            },
-            "post_commands": {
-              "description": "Commands run, in order, after version files are written back (and after stage_command, if set). If any command fails, the flow aborts immediately and no further post_commands run.",
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/command"
-              },
-              "default": []
-            }
-          }
+        "require_on_branch": {
+          "description": "Git branch that must be checked out for this flow to run (e.g. \"develop\", or a {NAME} placeholder such as \"{DEVELOP_BRANCH}\" resolved against this flow's own variables). Omit to allow the flow to run from any branch.",
+          "type": "string"
+        },
+        "variables": {
+          "$ref": "#/$defs/flowVariables"
+        },
+        "pre_commands": {
+          "description": "Commands run, in order, before version files are written back. If any command fails, the flow aborts immediately and no write-back or post_commands run.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/command"
+          },
+          "default": []
+        },
+        "stage_command": {
+          "description": "Optional command, run once per file vbumper actually wrote back this run (in order), with {CHANGED_FILE} substituted to that file's path. Runs after write-back and before post_commands. Omit to stage nothing automatically -- vbumper never stages/adds anything on its own unless a flow opts in here, and this only ever touches the exact files vbumper itself wrote, never a blanket 'add everything dirty'.",
+          "$ref": "#/$defs/stageCommand"
+        },
+        "post_commands": {
+          "description": "Commands run, in order, after version files are written back (and after stage_command, if set). If any command fails, the flow aborts immediately and no further post_commands run.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/command"
+          },
+          "default": []
         }
-      ]
+      }
     },
     "flowVariables": {
       "description": "Arbitrary flow-specific data, each entry available to this flow's commands as a {NAME} placeholder (e.g. {\"RELEASE_BRANCH\": \"main\"} makes {RELEASE_BRANCH} available). Purely data substituted into commands -- vbumper never acts on the values directly. Keys may not be VERSION, VERSION_TAG, or CHANGED_FILE, which are always reserved for vbumper's own substitutions.",

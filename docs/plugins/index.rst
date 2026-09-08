@@ -16,10 +16,11 @@ What a plugin contributes
 --------------------------
 
 A plugin contributes **discoverer configuration classes only**. Flows (Git workflows) are never
-plugin- or code-contributed -- a named flow only ever comes from a project's own ``flows:`` or
-from ``~/.vbumpconfig.yaml``'s ``flows:`` pulled in via ``recall:`` (see :doc:`../guide/git-workflows`).
-This is a deliberate, structural restriction: ``VBumpPluginProtocol`` simply has no method through
-which a flow could be contributed.
+plugin- or code-contributed -- a named flow only ever comes from a project's own ``flows:``.
+``~/.vbumpconfig.yaml`` is a separate, per-user template library that ``vbump flow add``/
+``vbump init --flows`` can copy a flow from beforehand (see :doc:`../guide/git-workflows`), but a
+run never resolves against it directly. This is a deliberate, structural restriction:
+``VBumpPluginProtocol`` simply has no method through which a flow could be contributed.
 
 The protocol a plugin implements
 -----------------------------------

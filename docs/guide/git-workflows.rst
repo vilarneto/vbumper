@@ -133,7 +133,7 @@ Reusing a flow across projects: ``~/.vbumpconfig.yaml``
 A flow like the ``release`` example above is often identical across several of your projects,
 save for one or two variables. Rather than repeating its full definition in every
 ``.vbump.yaml``, define it once in ``~/.vbumpconfig.yaml`` -- a single, optional, per-user file --
-and pull it into a project by name:
+and copy it into a project by name with ``vbump flow add``:
 
 .. code-block:: yaml
 
@@ -156,25 +156,78 @@ and pull it into a project by name:
          - git checkout {DEVELOP_BRANCH}
          - "git merge {RELEASE_BRANCH} -m \"chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'\""
 
+.. code-block:: console
+
+   $ vbump flow add release --set RELEASE_BRANCH=master --set-default
+
+writes a full, standalone copy of that flow straight into the project's own ``.vbump.yaml``:
+
 .. code-block:: yaml
 
-   # a project's .vbump.yaml
+   # the project's .vbump.yaml, after the command above
+   default_flow: release
    flows:
-     my-release:
-       recall: release
+     release:
+       name: Release to main
+       require_on_branch: "{DEVELOP_BRANCH}"
        variables:
+         DEVELOP_BRANCH: develop
          RELEASE_BRANCH: master
+       pre_commands:
+         - git checkout {RELEASE_BRANCH}
+         - "git merge {DEVELOP_BRANCH} -m \"chore: merge branch '{DEVELOP_BRANCH}' into '{RELEASE_BRANCH}'\""
+       stage_command: git add "{CHANGED_FILE}"
+       post_commands:
+         - 'git commit -m "chore: bump version to {VERSION}"'
+         - git tag {VERSION_TAG}
+         - git checkout {DEVELOP_BRANCH}
+         - "git merge {RELEASE_BRANCH} -m \"chore: merge branch '{RELEASE_BRANCH}' into '{DEVELOP_BRANCH}'\""
 
-   default_flow: my-release
+Nothing in the written file points back at ``~/.vbumpconfig.yaml`` -- it's a genuinely standalone
+flow from here on, indistinguishable from one written by hand. This matters the moment the
+project is cloned onto another machine: whoever clones it gets a fully working flow with no
+extra setup, whether or not *their* ``~/.vbumpconfig.yaml`` even exists.
 
-``recall: NAME`` adopts that flow's definition wholesale (``name``, ``require_on_branch``,
-``pre_commands``, ``stage_command``, ``post_commands``); the entry may only additionally set
-``variables``, merged key-by-key onto the recalled definition's own (your keys win, everything
-else from ``~/.vbumpconfig.yaml`` survives). Naming a flow that isn't defined there is a
-configuration error, reported at the point the flow is resolved. ``~/.vbumpconfig.yaml`` is
-checked at one single, fixed location -- a project without a ``recall:`` anywhere is entirely
-unaffected by whether this file exists or what it contains. A flow defined in
-``~/.vbumpconfig.yaml`` cannot itself use ``recall:`` -- it must be a full definition.
+``vbump flow add NAME`` accepts:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Option
+     - Meaning
+   * - ``--set NAME=value``
+     - Override one variable in the copy (repeatable). Above, it's what turns the template's
+       default ``RELEASE_BRANCH: main`` into ``master`` for this one project.
+   * - ``--set-default``
+     - Also set the project's ``default_flow:`` to this flow's key.
+   * - ``--update``
+     - Refresh an already-added flow from the (possibly since-edited) template -- ``name``,
+       ``require_on_branch``, ``pre_commands``, ``stage_command``, and ``post_commands`` are all
+       taken fresh from the template, but the project's own ``variables`` values are preserved
+       (layered under any ``--set`` given on the same invocation, which wins). Without
+       ``--update``, adding a flow whose key already exists locally is an error.
+
+Naming a flow that isn't defined in ``~/.vbumpconfig.yaml`` is an error, listing what is
+available there. ``~/.vbumpconfig.yaml`` is checked at one single, fixed location -- a project
+that has never run ``vbump flow add`` is entirely unaffected by whether this file exists or what
+it contains, and ``bump`` itself never reads it at all.
 
 ``~/.vbumpconfig.yaml`` requires the same ``version: 3`` marker as a project's own
 ``.vbump.yaml``.
+
+Scaffolding a new project with flows already in place
+-------------------------------------------------------
+
+``vbump init --flows=NAME[,NAME...]`` does the same copy at scaffold time, for one or more flows
+at once -- useful when a brand new project should start with its release flow already configured,
+rather than running ``init`` and ``flow add`` as two separate steps:
+
+.. code-block:: console
+
+   $ vbump init --flows=release,hotfix
+
+Each name is copied in exactly as defined in ``~/.vbumpconfig.yaml``, with no ``--set``/
+``--set-default`` equivalent -- ``init`` stays a single, simple scaffolding step; adjust
+variables or the default flow afterward with ``vbump flow add NAME --update`` (or by hand) if
+needed. An unknown name fails before anything is written, the same as every other ``init``
+validation.

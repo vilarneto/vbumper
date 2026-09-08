@@ -3,11 +3,14 @@ import pathlib
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 
 from click.testing import CliRunner
 
 from vbumper.cli import bump, init, list_  # imported for their command-registration side effect
 from vbumper.cli._grp import root_grp
+from vbumper.config.flow import FlowDefinition
+from vbumper.config.global_config import GlobalConfig
 from vbumper.core.plugins.installer import install_plugins
 
 
@@ -32,6 +35,14 @@ class InitCLITestCase(unittest.TestCase):
 
     def invoke(self, args):
         return self.runner.invoke(root_grp, args)
+
+    def patch_global_config(self, flows: dict[str, FlowDefinition]):
+        patcher = mock.patch(
+            "vbumper.config.global_config.load_global_config",
+            return_value=GlobalConfig(flows=flows),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
 
 class TestInitScaffold(InitCLITestCase):
@@ -99,6 +110,41 @@ class TestInitScaffold(InitCLITestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertFalse(pathlib.Path(".vbump.yaml").exists())
         self.assertIn("Would write", result.output)
+
+
+class TestInitFlows(InitCLITestCase):
+    def test_single_flow_is_copied_in(self):
+        self.patch_global_config({"release": FlowDefinition(name="Release")})
+
+        result = self.invoke(["init", "--flows=release"])
+        self.assertEqual(result.exit_code, 0, result.output)
+
+        from vbumper.config.load import load_config_file
+
+        config = load_config_file(".vbump.yaml")
+        self.assertIn("release", config.flows)
+        self.assertEqual(config.flows["release"].name, "Release")
+
+    def test_multiple_comma_separated_flows_are_copied_in(self):
+        self.patch_global_config(
+            {"release": FlowDefinition(name="Release"), "hotfix": FlowDefinition(name="Hotfix")}
+        )
+
+        result = self.invoke(["init", "--flows=release,hotfix"])
+        self.assertEqual(result.exit_code, 0, result.output)
+
+        from vbumper.config.load import load_config_file
+
+        config = load_config_file(".vbump.yaml")
+        self.assertEqual(set(config.flows), {"release", "hotfix"})
+
+    def test_unknown_flow_name_fails_before_writing_anything(self):
+        self.patch_global_config({"release": FlowDefinition(name="Release")})
+
+        result = self.invoke(["init", "--flows=missing"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertFalse(pathlib.Path(".vbump.yaml").exists())
 
 
 class TestMissingConfigIsAnError(InitCLITestCase):

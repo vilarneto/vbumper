@@ -1,5 +1,5 @@
 from .discoverer import DiscovererEntryConfig
-from .flow import Command, FlowConfig
+from .flow import Command, FlowDefinition
 from .load import find_config_path, load_config, load_config_file
 from .root import CONFIG_VERSION, ExcludePatterns, VBumpConfig
 
@@ -8,7 +8,7 @@ __all__ = [
     "Command",
     "DiscovererEntryConfig",
     "ExcludePatterns",
-    "FlowConfig",
+    "FlowDefinition",
     "VBumpConfig",
     "find_config_path",
     "load_config",
