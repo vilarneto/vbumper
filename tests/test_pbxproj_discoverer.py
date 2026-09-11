@@ -168,6 +168,42 @@ class PBXProjDiscovererTestCase(unittest.TestCase):
         self.assertEqual(app_status, Versioned(value=SemVer.parse("1.0.0")))
         self.assertEqual(tests_status, Versioned(value=SemVer.parse("2.0.0")))
 
+    def test_iter_auto_detected_yields_one_entry_per_target(self):
+        content = _pbxproj(
+            _target(
+                "A0000000000000000000000A",
+                "App",
+                "B0000000000000000000000B",
+                debug_uuid="C0000000000000000000000C",
+                release_uuid="D0000000000000000000000D",
+                debug_version="1.0.0",
+                release_version="1.0.0",
+            ),
+            _target(
+                "A1111111111111111111111A",
+                "AppTests",
+                "B1111111111111111111111B",
+                debug_uuid="C1111111111111111111111C",
+                release_uuid="D1111111111111111111111D",
+                debug_version="2.0.0",
+                release_version="2.0.0",
+            ),
+        )
+        _write("App.xcodeproj/project.pbxproj", content)
+
+        entries = list(
+            PBXProjFileConfig.iter_auto_detected(
+                dir_root=pathlib.Path("."), path_exclude_patterns=()
+            )
+        )
+        self.assertEqual(
+            {extra_fields["targets"][0] for _, extra_fields in entries}, {"App", "AppTests"}
+        )
+        for descriptions, extra_fields in entries:
+            self.assertEqual(len(descriptions), 1)
+            self.assertEqual(extra_fields, {"targets": [extra_fields["targets"][0]]})
+            self.assertIn(f'"{extra_fields["targets"][0]}"', descriptions[0])
+
     def test_targets_as_a_single_string_restricts_to_that_target(self):
         content = _pbxproj(
             _target(

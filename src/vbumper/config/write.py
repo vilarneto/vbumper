@@ -2,11 +2,11 @@
 `flows:` entry (and optionally `default_flow:`), while preserving every other comment, blank
 line, and key order already in the file.
 
-Used only by `vbump flow add` -- the one command that materializes a `~/.vbumpconfig.yaml`
+Used only by `vbump flow add`: the one command that materializes a `~/.vbumpconfig.yaml`
 template into an *existing*, already-commented project config. Deliberately separate from
 `vbumper.config.load`'s `typ="safe"` validating loader: that one parses a file into plain Python
 values for pydantic validation and throws away all formatting; this one keeps the formatting and
-is never used to validate anything -- `flow add` validates the merged `FlowDefinition` itself
+is never used to validate anything: `flow add` validates the merged `FlowDefinition` itself
 (via `load_config`/`FlowDefinition.model_validate`) before this module is ever touched, so a
 failure never leaves a half-edited file (see `set_flow_entry`)."""
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 #: Keys that may precede `default_flow:`/`flows:` in a conventionally-ordered `.vbump.yaml`,
 #: checked in this order to decide where a freshly-added key should land (right after the last
-#: one of these actually present, or at the very top if none are). Purely cosmetic -- the config
+#: one of these actually present, or at the very top if none are). Purely cosmetic: the config
 #: parses identically regardless of key order.
 _PRECEDING_KEYS = ("version", "version_tag_prefix", "default_flow")
 
@@ -41,7 +41,7 @@ def load_raw_for_edit(path: str | Path) -> CommentedMap:
             raw = yaml.load(fd)
         except YAMLError as exc:
             raise_configuration_error(path, exc)
-            raise  # pragma: no cover -- raise_configuration_error always raises
+            raise  # pragma: no cover (raise_configuration_error always raises)
 
     from ruamel.yaml.comments import CommentedMap
 
@@ -65,7 +65,7 @@ def set_flow_entry(raw: CommentedMap, key: str, flow: FlowDefinition) -> None:
     would put it) if the file doesn't have one yet. Every other entry already under `flows:`, and
     everywhere else in `raw`, is left untouched.
 
-    `flow` must already be the fully-resolved, validated definition to write -- merging template
+    `flow` must already be the fully-resolved, validated definition to write: merging template
     fields, prior local `variables`, and any `--set` overrides is `vbump flow add`'s job, not
     this function's."""
 

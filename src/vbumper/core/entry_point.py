@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 class CorePlugin(VBumpPluginProtocol):
     """Registers the discoverer config classes that ship in-tree with vbumper itself, as opposed
-    to ones installed from a separate plugin distribution. Contributes no flows -- see
+    to ones installed from a separate plugin distribution. Contributes no flows: see
     `README.md`'s recipes for the Git workflows that used to ship as built-in flows."""
 
     def iter_config_classes(self) -> Iterator[type[DiscovererConfigProtocol[DiscovererProtocol]]]:

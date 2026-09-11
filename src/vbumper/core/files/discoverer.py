@@ -196,12 +196,21 @@ class AbstractFileDiscoverer[Container: TextFileContentsVersionContainer](
                 if not self._is_path_included(relative_file):
                     continue
 
-                yield from self._discover_from_file(current_dir / file_entry)
+                yield from self._discover_from_file(
+                    current_dir / file_entry, display_path=relative_file
+                )
 
     @abc.abstractmethod
     def _discover_from_file(
-        self, file_path: pathlib.Path
-    ) -> Iterator[TextFileContentsVersionContainer]: ...
+        self, file_path: pathlib.Path, *, display_path: pathlib.Path
+    ) -> Iterator[TextFileContentsVersionContainer]:
+        """`file_path` is what to actually open/read (absolute or relative to the process's own
+        working directory, following whatever form `root_dir` was given in -- valid for I/O
+        regardless of `root_dir`'s own absoluteness). `display_path` is always relative to
+        `root_dir` itself, for `describe()`/error messages to report instead: a container's
+        textual description should never leak the local filesystem layout `--dir`/`-d` happened
+        to be given as, only where the matched file lives *within* the discovered project."""
+        ...
 
 
 class RegularExpressionFileDiscoverer(AbstractFileDiscoverer[TextFileContentsVersionContainer]):
@@ -237,6 +246,8 @@ class RegularExpressionFileDiscoverer(AbstractFileDiscoverer[TextFileContentsVer
     def _discover_from_file(
         self,
         file_path: pathlib.Path,
+        *,
+        display_path: pathlib.Path,
     ) -> Iterator[TextFileContentsVersionContainer]:
         with file_path.open("rt", encoding=self._encoding) as file:
             contents = file.read()
@@ -249,7 +260,7 @@ class RegularExpressionFileDiscoverer(AbstractFileDiscoverer[TextFileContentsVer
             if not self._allow_multiple_matches and version_chunks:
                 raise TooManyMatchesFailure(
                     "File matches the version pattern more than once",
-                    container_description=describe_file_container(file_path),
+                    container_description=describe_file_container(display_path),
                 )
 
             chunks.append(contents[last_pos : match.start("version")].encode(self._encoding))
@@ -263,6 +274,7 @@ class RegularExpressionFileDiscoverer(AbstractFileDiscoverer[TextFileContentsVer
 
         yield TextFileContentsVersionContainer(
             file_path=file_path,
+            display_path=display_path,
             version_chunks=version_chunks,
             chunks=chunks,
             encoding=self._encoding,
@@ -300,6 +312,8 @@ class JSONFileDiscoverer(AbstractFileDiscoverer[JSONFileVersionContainer]):
     def _discover_from_file(
         self,
         file_path: pathlib.Path,
+        *,
+        display_path: pathlib.Path,
     ) -> Iterator[JSONFileVersionContainer]:
         import json
 
@@ -318,6 +332,7 @@ class JSONFileDiscoverer(AbstractFileDiscoverer[JSONFileVersionContainer]):
 
         yield JSONFileVersionContainer(
             file_path=file_path,
+            display_path=display_path,
             data=data,
             version_key=self._version_key,
             encoding=self._encoding,

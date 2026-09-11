@@ -11,7 +11,7 @@ class DiscovererEntryConfig(pydantic.BaseModel):
     """One entry of `VBumpConfig.discoverers`: a plugin-discriminated config object.
 
     `type` selects the discoverer plugin (its registered identifier, e.g. "file-regexp");
-    every other key is that plugin's own parameter and is *not* validated here -- it is
+    every other key is that plugin's own parameter and is *not* validated here: it is
     handed, verbatim, to that plugin's own config class (`DiscovererConfigProtocol`) once the
     plugin registry has been populated. Keeping this model's own validation limited to `type`
     lets `VBumpConfig` be parsed and the "all flows behave identically" / "version == 3" shape

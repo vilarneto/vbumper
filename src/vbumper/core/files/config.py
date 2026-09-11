@@ -19,9 +19,9 @@ def _coerce_patterns(value: str | list[str]) -> list[str]:
 
 
 #: One gitignore-style pattern (matched via `pathspec`'s gitignore syntax, same as
-#: `VBumpConfig.exclude`) or a list of them -- always at least one pattern, enforced by the
+#: `VBumpConfig.exclude`) or a list of them: always at least one pattern, enforced by the
 #: `min_length=1` on the field itself. Deliberately duplicated rather than imported from
-#: `vbumper.config.root.ExcludePatterns` -- this class is a plugin-owned discoverer config and
+#: `vbumper.config.root.ExcludePatterns`: this class is a plugin-owned discoverer config and
 #: should not depend on the top-level application config package.
 PathspecPatterns = Annotated[
     list[str],
@@ -33,13 +33,13 @@ class RegularExpressionFileConfig(pydantic.BaseModel):
     """Implements `DiscovererConfigProtocol[RegularExpressionFileDiscoverer]` structurally.
 
     `Protocol` subclasses use a different metaclass than `pydantic.BaseModel`, so this can't
-    inherit from `DiscovererConfigProtocol` directly (metaclass conflict) — it satisfies the
+    inherit from `DiscovererConfigProtocol` directly (metaclass conflict); it satisfies the
     protocol by shape instead, which is all `Protocol` ever requires."""
 
     allow_multiple_matches: Annotated[bool, pydantic.Field(default=False)]
     encoding: Annotated[str, pydantic.Field(default="utf-8")]
     #: Required: a generic `file-regexp` entry must state at least one gitignore-style pattern
-    #: narrowing which files it applies to -- there is no "match every file" default, since an
+    #: narrowing which files it applies to: there is no “match every file” default, since an
     #: unbounded content-pattern scan across the whole tree is never what a hand-written config
     #: entry actually wants.
     include: Annotated[PathspecPatterns, pydantic.Field(min_length=1)]
@@ -61,7 +61,7 @@ class RegularExpressionFileConfig(pydantic.BaseModel):
     ) -> RegularExpressionFileDiscoverer:
         """`path_exclude_patterns` are the project-wide `exclude:` gitignore-style patterns from
         `VBumpConfig` (distinct from this entry's own `include`, which narrows candidate files
-        down rather than ruling files out) — the caller assembling discoverers from config is
+        down rather than ruling files out); the caller assembling discoverers from config is
         responsible for threading them through. `dir_root` is the CLI's `--dir`/`-d` value;
         see `resolve_discovery_root` for how it determines the walk's starting point."""
 

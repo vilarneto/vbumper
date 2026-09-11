@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vbumper.dev/schema/vbumper-global-config.schema.json",
   "title": "vbumper global configuration",
-  "description": "Schema for the optional, per-user `~/.vbumpconfig.yaml` file: a template library of reusable named flows, copied into a project's own `.vbump.yaml` by `vbump flow add`/`vbump init --flows` instead of redefining the same flow by hand in every project. Never read at bump time. This file is never required to exist -- a project that has never run `flow add`/`init --flows` is unaffected by its absence or content.",
+  "description": "Schema for the optional, per-user `~/.vbumpconfig.yaml` file: a template library of reusable named flows, copied into a project's own `.vbump.yaml` by `vbump flow add`/`vbump init --flows` instead of redefining the same flow by hand in every project. Never read at bump time. This file is never required to exist: a project that has never run `flow add`/`init --flows` is unaffected by its absence or content.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -77,7 +77,7 @@
       }
     },
     "command": {
-      "description": "A single command, run through the operating system's own command shell after placeholder substitution (/bin/sh on Unix-like systems, cmd.exe on Windows). May contain the placeholders {VERSION}, {VERSION_TAG}, and one {NAME} placeholder per entry in this flow's own `variables:`. Substitution is verbatim -- no value is quoted or escaped on the command's behalf.",
+      "description": "A single command, run through the operating system's own command shell after placeholder substitution (/bin/sh on Unix-like systems, cmd.exe on Windows). May contain the placeholders {VERSION}, {VERSION_TAG}, and one {NAME} placeholder per entry in this flow's own `variables:`. Substitution is verbatim: no value is quoted or escaped on the command's behalf.",
       "type": "string",
       "minLength": 1,
       "examples": [
@@ -87,7 +87,7 @@
       ]
     },
     "stageCommand": {
-      "description": "A single command, run once per changed file through the operating system's own command shell after placeholder substitution (/bin/sh on Unix-like systems, cmd.exe on Windows). Accepts everything `command` does, plus {CHANGED_FILE} (that invocation's file path) -- meaningless, and left unsubstituted, anywhere else. Substitution is verbatim -- no value is quoted or escaped on the command's behalf.",
+      "description": "A single command, run once per changed file through the operating system's own command shell after placeholder substitution (/bin/sh on Unix-like systems, cmd.exe on Windows). Accepts everything `command` does, plus {CHANGED_FILE} (that invocation's file path); meaningless, and left unsubstituted, anywhere else. Substitution is verbatim: no value is quoted or escaped on the command's behalf.",
       "type": "string",
       "minLength": 1,
       "examples": [

@@ -45,7 +45,7 @@ class FlowCommandFailure(VBumpError):
     """Raised when a flow's `pre_commands`/`post_commands` entry (or an internal `git` read used
     to check preconditions) exits non-zero, or when running it fails outright.
 
-    No rollback is attempted for commands that already ran -- this mirrors write-back's own
+    No rollback is attempted for commands that already ran: this mirrors write-back's own
     no-rollback stance (see `WriteBackFailure`) for the flow engine."""
 
     def __init__(self, *args, command: str, returncode: int):
@@ -58,7 +58,7 @@ class WriteBackFailure(VBumpError):
     """Raised when write-back aborts partway through because one container's `write()` failed.
 
     Carries which containers were already written and which were never reached, so the caller
-    can report a precise, actionable summary -- write-back never rolls back what already
+    can report a precise, actionable summary: write-back never rolls back what already
     succeeded, aborting immediately at the first failure instead."""
 
     def __init__(

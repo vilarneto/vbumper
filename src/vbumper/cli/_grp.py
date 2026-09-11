@@ -5,7 +5,7 @@ click.rich_click.SHOW_ARGUMENTS = True
 click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 click.rich_click.STYLE_ERRORS_SUGGESTION = "magenta italic"
 
-#: Shared by every command in the group, not just the root -- lets `-h` work anywhere `--help`
+#: Shared by every command in the group, not just the root: lets `-h` work anywhere `--help`
 #: does.
 CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 

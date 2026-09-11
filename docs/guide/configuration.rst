@@ -132,7 +132,10 @@ below).
        a list of them) restricts discovery to just those targets -- omitted (or ``~``) means every
        target, the default; an explicit empty list is rejected, since it could never match
        anything; a name that matches no ``PBXNativeTarget`` under the discovery root is a
-       configuration error.
+       configuration error. ``vbump init`` scaffolds one ``discoverers:`` entry per target found
+       (each with its own single-item ``targets:``), rather than one shared entry, since Xcode
+       versions targets independently, not projects -- dropping a target later is then just
+       deleting its entry.
    * - ``setup-py``
      - ``setup.py``
      - A ``version="..."`` keyword argument to ``setup()``, at the start of a line.

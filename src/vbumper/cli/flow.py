@@ -1,19 +1,19 @@
 """`vbump flow add`: copy a named flow template from `~/.vbumpconfig.yaml` into the current
 project's own `.vbump.yaml`, as a full, standalone `FlowDefinition`. Once copied, no runtime
-dependency on `~/.vbumpconfig.yaml` survives -- `vbumper.core.flows.resolve_selected_flow` never
+dependency on `~/.vbumpconfig.yaml` survives: `vbumper.core.flows.resolve_selected_flow` never
 reads it, so a project's `.vbump.yaml` stays self-contained for anyone who clones it.
 
 `flow` cannot be a true nested `click.Group` under `root_grp`: Click categorically refuses to add
 a `Group` as a subcommand of a chain-mode group. It also can't simply declare `add`/`NAME` as its
-own positional arguments alongside `--update`/`--set`/`--set-default` options -- a chain group
+own positional arguments alongside `--update`/`--set`/`--set-default` options: a chain group
 parses each subcommand with `allow_interspersed_args=False`, so any option written *after* a
 positional argument is mistaken for the start of the next chained command instead. `flow` works
 around both restrictions by registering as a single, argument-swallowing `root_grp` command
 (`args: tuple[str, ...]`, `type=click.UNPROCESSED`) that dispatches by hand into `add_command`,
-an ordinary, independently-parsed `click.Command` invoked via `.main(..., standalone_mode=False)`
--- a fresh parse with normal (non-chain) option/argument ordering rules, so
+an ordinary, independently-parsed `click.Command` invoked via `.main(..., standalone_mode=False)`,
+a fresh parse with normal (non-chain) option/argument ordering rules, so
 `vbump flow add NAME --set NAME=value` reads exactly as expected. It does its one job (edit a
-file) eagerly and returns `None`, the same as `init`/`list` -- it is not part of the chained bump
+file) eagerly and returns `None`, the same as `init`/`list`: it is not part of the chained bump
 pipeline.
 """
 
@@ -64,7 +64,7 @@ def _add(name: str, *, update: bool, set_: tuple[str, ...], set_default: bool) -
     config_path = find_config_path(options.dir)
     if config_path is None:
         raise click.UsageError(
-            f"No .vbump.yaml/.vbump.yml found in {options.dir} -- run 'vbump init' first."
+            f"No .vbump.yaml/.vbump.yml found in {options.dir}; run “vbump init” first."
         )
 
     global_config = load_global_config()
@@ -78,7 +78,7 @@ def _add(name: str, *, update: bool, set_: tuple[str, ...], set_default: bool) -
     existing = get_config().flows.get(name)
     if existing is not None and not update:
         raise click.UsageError(
-            f"flows.{name} already exists in {config_path} -- use --update to refresh it."
+            f"flows.{name} already exists in {config_path}; use --update to refresh it."
         )
 
     overrides: dict[str, str] = {}
@@ -92,7 +92,7 @@ def _add(name: str, *, update: bool, set_: tuple[str, ...], set_default: bool) -
         variables.update(existing.variables)
     variables.update(overrides)
 
-    # `model_copy` bypasses validation, so re-validate the merged result explicitly -- it's the
+    # `model_copy` bypasses validation, so re-validate the merged result explicitly: it's the
     # only field being computed here rather than copied verbatim from an already-valid source.
     merged = FlowDefinition.model_validate(
         {**template.model_dump(exclude={"variables"}), "variables": variables}
@@ -174,7 +174,7 @@ def flow(args: tuple[str, ...]) -> None:
 
 
 #: Exposed (no leading underscore) so `docs/cli/index.rst` can document it directly via its own
-#: `sphinx-click` directive -- `flow` itself, being an argument-swallowing dispatcher, would
+#: `sphinx-click` directive: `flow` itself, being an argument-swallowing dispatcher, would
 #: otherwise auto-document as a bare, optionless `[ARGS]...` command with no trace of `--update`/
 #: `--set`/`--set-default` (see the module docstring for why `add` can't be a real Click
 #: subcommand of `flow` here).

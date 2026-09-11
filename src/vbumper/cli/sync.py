@@ -6,7 +6,7 @@ flags) and its interactive confirmation step don't fit the shared `BumpChainStat
 pipeline that `patch`/`minor`/etc. use. Instead it does its one job eagerly in its own callback and
 returns nothing, the same shape `init`/`list` already use.
 
-Unlike the bump family, `sync` never requires prior agreement across containers -- disagreement is
+Unlike the bump family, `sync` never requires prior agreement across containers: disagreement is
 exactly the situation it exists to resolve. It takes the highest `SemVer` found among `Versioned`
 containers (optionally also looking inside `Mismatched` containers' internal copies) and writes it
 over every `Versioned`/`Unversioned` container, plus `Mismatched`/`Invalid` containers if their

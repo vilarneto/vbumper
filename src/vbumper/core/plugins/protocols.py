@@ -6,7 +6,7 @@ if TYPE_CHECKING:
 
 
 class VBumpPluginProtocol(Protocol):
-    """A plugin contributes discoverer configuration classes only -- flows are never
+    """A plugin contributes discoverer configuration classes only: flows are never
     code/plugin-contributed. A named flow comes only from a project's own `flows:`;
     `~/.vbumpconfig.yaml`'s `flows:` is a template library `vbump flow add`/`vbump init --flows`
     can copy from beforehand, but a run never resolves against it directly (see

@@ -2,7 +2,7 @@
 preconditions (clean working tree, starting branch), and executing its `pre_commands`/
 `post_commands` around write-back.
 
-By design, the engine treats every flow -- built-in or user-defined -- identically: nothing here
+By design, the engine treats every flow, built-in or user-defined, identically: nothing here
 branches on a flow's name or key, and every global option (`--dry-run`, `--allow-dirty-repository`,
 ...) applies uniformly regardless of which flow is selected. `vbumper.cli.bump` is what wires this
 into the chain group's `result_callback`.
@@ -30,7 +30,7 @@ def resolve_selected_flow(
     `default_flow` with no `--flow` simply means no flow runs (matches the implicit "no flow
     selected" case).
 
-    This looks only at the project's own `flows:` -- `~/.vbumpconfig.yaml` is never consulted
+    This looks only at the project's own `flows:`: `~/.vbumpconfig.yaml` is never consulted
     here. It's a template library read only by `vbump flow add`/`vbump init --flows` to copy a
     flow into a project's own config beforehand; a run never depends on it existing or matching
     anything.
@@ -58,7 +58,7 @@ def substitute_variables(text: str, variables: dict[str, str] | None) -> str:
     """Replace one `{NAME}` placeholder per entry in `variables` in `text`. A `{NAME}` referenced
     without a matching entry is left as literal, unreplaced text.
 
-    The one substitution rule shared by every placeholder-bearing flow field -- command arguments
+    The one substitution rule shared by every placeholder-bearing flow field: command arguments
     (via `substitute_placeholders`) and `FlowDefinition.require_on_branch` (via
     `check_preconditions`) both go through this, so a flow's `variables:` is a single source of
     truth for a name like
@@ -79,10 +79,10 @@ def substitute_placeholders(
     changed_file: str | None = None,
 ) -> str:
     """Replace the `{VERSION}`/`{VERSION_TAG}` placeholders, plus one `{NAME}` placeholder per
-    entry in `variables` (see `substitute_variables`), in `command`. Substitution is verbatim --
+    entry in `variables` (see `substitute_variables`), in `command`. Substitution is verbatim:
     no substituted value is quoted or escaped on the command's behalf.
 
-    `changed_file`, when given, additionally substitutes `{CHANGED_FILE}` -- meaningful only for
+    `changed_file`, when given, additionally substitutes `{CHANGED_FILE}`, meaningful only for
     `stage_command` (see `run_stage_command`); left as literal, unreplaced text otherwise, the
     same as an unmatched custom `{NAME}` variable."""
 
@@ -137,11 +137,11 @@ def check_preconditions(flow_config: FlowDefinition, *, allow_dirty_repository: 
     `require_on_branch` is set, that the repository is currently on that branch.
 
     `require_on_branch` is substituted against the flow's own `variables` (via
-    `substitute_variables`) before comparison, the same as any command argument -- so a flow
+    `substitute_variables`) before comparison, the same as any command argument, so a flow
     written as `require_on_branch: "{DEVELOP_BRANCH}"` never holds a second, independent copy of
     a branch name that could drift out of sync with `variables.DEVELOP_BRANCH`.
 
-    Always enforced, regardless of `--dry-run` -- these are real facts about repository state
+    Always enforced, regardless of `--dry-run`: these are real facts about repository state
     a preview should still surface, not mutating actions dry-run is meant to skip.
     """
 
@@ -197,11 +197,11 @@ def run_commands(
     dry_run: bool,
 ) -> None:
     """Run each command in sequence (after placeholder substitution), aborting immediately at the
-    first failure -- no rollback of commands already run, consistent with write-back's own
+    first failure: no rollback of commands already run, consistent with write-back's own
     no-rollback stance on container write failures.
 
     Each command runs through the operating system's own command shell (`/bin/sh` on Unix-like
-    systems, `cmd.exe` on Windows) -- a sequence meant to behave identically on both needs to
+    systems, `cmd.exe` on Windows): a sequence meant to behave identically on both needs to
     stick to syntax both shells understand, or be split into separate, simpler commands.
 
     `--dry-run` prints `Would execute: ...` for each command instead of running it.
@@ -230,7 +230,7 @@ def run_stage_command(
     `{CHANGED_FILE}` substituted to that container's own `file_path`. A container whose
     `file_path` is `None` (not file-backed) is skipped.
 
-    A no-op if `stage_command` is `None` -- vbumper never stages anything unless a flow opts in
+    A no-op if `stage_command` is `None`: vbumper never stages anything unless a flow opts in
     explicitly, and never touches anything beyond the exact files it just wrote itself. Runs
     strictly after write-back and before `post_commands`; see `vbumper.cli.bump._run_chain`.
 

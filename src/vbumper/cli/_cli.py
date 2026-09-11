@@ -23,8 +23,8 @@ def graceful_shutdown[**P, T](func: Callable[P, T], /) -> Callable[P, T]:
 
 def _show_warning_plainly(message, category, filename, lineno, file=None, line=None) -> None:
     """Replaces `warnings`' default `showwarning`, which renders the source file/line the
-    `warnings.warn()` call itself sits in -- meaningless, and rather alarming, to a CLI user who
-    isn't reading this project's source. Prints just the message instead."""
+    `warnings.warn()` call itself sits in (meaningless, and rather alarming, to a CLI user who
+    isn't reading this project's source). Prints just the message instead."""
 
     click.secho(f"Warning: {message}", fg="yellow", err=True)
 

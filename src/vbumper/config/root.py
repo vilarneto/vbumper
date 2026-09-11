@@ -14,7 +14,7 @@ def _coerce_exclude_patterns(value: str | list[str]) -> list[str]:
     return value
 
 
-#: A single gitignore-style exclusion pattern, or a list of them -- accepting a bare string
+#: A single gitignore-style exclusion pattern, or a list of them: accepting a bare string
 #: avoids `exclude: [pattern]` boilerplate for the common single-pattern case. Matched via
 #: `pathspec` (gitignore syntax), against paths relative to the discovery root.
 ExcludePatterns = Annotated[
@@ -28,13 +28,13 @@ def default_exclude_patterns() -> list[str]:
     project-specific `exclude:` entries in config.
 
     `VBumpConfig.exclude` *appends* to this list rather than replacing it (see
-    `VBumpConfig.all_exclude_patterns`) -- a project can carve an exception back out of a default
+    `VBumpConfig.all_exclude_patterns`): a project can carve an exception back out of a default
     with gitignore negation (`!some-generated-dir/`), but a bare `exclude:` entry can never
     silently reopen scanning of things like `.git/` or `node_modules/`.
 
     Grouped and commented by ecosystem for maintainability; entries are deliberately allowed to
     repeat across groups (e.g. `target/` for both Rust and Maven, `build/` for both JS and
-    Gradle) since that reads clearer than cross-referencing -- `_dedupe` below collapses
+    Gradle) since that reads clearer than cross-referencing: `_dedupe` below collapses
     duplicates, preserving first-seen order.
     """
 
@@ -123,7 +123,7 @@ def config_header_comment() -> str:
 class VBumpConfig(pydantic.BaseModel):
     """Root of the vbumper project configuration file (`.vbump.yaml`/`.vbump.yml`).
 
-    Mirrors `vbumper-config.schema.json` -- keep the two in sync when this model changes.
+    Mirrors `vbumper-config.schema.json`: keep the two in sync when this model changes.
     """
 
     model_config = pydantic.ConfigDict(frozen=True, extra="forbid")
@@ -147,7 +147,7 @@ class VBumpConfig(pydantic.BaseModel):
 
     @classmethod
     def default(cls) -> VBumpConfig:
-        """An empty, otherwise-default config -- the starting point `vbump init` seeds a new
+        """An empty, otherwise-default config: the starting point `vbump init` seeds a new
         `.vbump.yaml` from. Not used as a runtime fallback: a project without a config file is a
         configuration error (see `vbumper.config.load.load_config`), not an implicit empty one,
         since discoverers are opt-in and there would be nothing to discover with."""
@@ -158,7 +158,7 @@ class VBumpConfig(pydantic.BaseModel):
     def all_exclude_patterns(self) -> list[str]:
         """The patterns discovery should actually apply: `default_exclude_patterns()` with this
         config's own `exclude:` entries appended. Callers that prune the directory walk (see
-        `AbstractFileDiscoverer`) should use this rather than `self.exclude` directly --
+        `AbstractFileDiscoverer`) should use this rather than `self.exclude` directly:
         `exclude:` in config is additive, never a replacement for the built-in defaults."""
 
         return _dedupe([*default_exclude_patterns(), *self.exclude])

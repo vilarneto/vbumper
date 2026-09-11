@@ -86,6 +86,100 @@ class TestInitScaffold(InitCLITestCase):
             '{\n  "name": "example",\n  "version": "1.2.4"\n}\n',
         )
 
+    def test_scaffold_comments_never_leak_the_absolute_dir_path(self):
+        """A `--dir` given as an absolute path must not bleed into the generated file's
+        comments -- `.vbump.yaml` is meant to be committed/shared, so it should never embed the
+        local filesystem layout (or username) of whoever happened to run `init`."""
+
+        project_dir = pathlib.Path.cwd() / "project"
+        _write_version_file(
+            str(project_dir / "pyproject.toml"), 'name = "example"\nversion = "1.2.3"\n'
+        )
+
+        # Invoke from a directory other than the project's own, using an absolute --dir.
+        other_dir = pathlib.Path.cwd() / "elsewhere"
+        other_dir.mkdir()
+        previous_cwd = os.getcwd()
+        os.chdir(other_dir)
+        self.addCleanup(os.chdir, previous_cwd)
+
+        result = self.invoke(["--dir", str(project_dir), "init"])
+        self.assertEqual(result.exit_code, 0, result.output)
+
+        contents = (project_dir / ".vbump.yaml").read_text()
+        self.assertIn("pyproject.toml", contents)
+        self.assertNotIn(str(project_dir), contents)
+
+    def test_xcode_pbxproj_scaffolds_one_entry_per_target(self):
+        """Xcode versions targets independently, not projects (see CLAUDE.md's design notes), so
+        `init` should scaffold one `discoverers:` entry per target, each scoped via its own
+        single-item `targets:`, rather than one entry covering every target in the file."""
+
+        pbxproj = textwrap.dedent(
+            """\
+            // !$*UTF8*$!
+            /* Begin PBXNativeTarget section */
+            \t\tA0000000000000000000000A /* App */ = {
+            \t\t\tisa = PBXNativeTarget;
+            \t\t\tbuildConfigurationList = B0000000000000000000000B /* Build configuration list */;
+            \t\t\tname = App;
+            \t\t};
+            \t\tA1111111111111111111111A /* AppTests */ = {
+            \t\t\tisa = PBXNativeTarget;
+            \t\t\tbuildConfigurationList = B1111111111111111111111B /* Build configuration list */;
+            \t\t\tname = AppTests;
+            \t\t};
+            /* End PBXNativeTarget section */
+            /* Begin XCConfigurationList section */
+            \t\tB0000000000000000000000B /* Build configuration list */ = {
+            \t\t\tisa = XCConfigurationList;
+            \t\t\tbuildConfigurations = (
+            \t\t\t\tC0000000000000000000000C /* Release */,
+            \t\t\t);
+            \t\t\tdefaultConfigurationName = Release;
+            \t\t};
+            \t\tB1111111111111111111111B /* Build configuration list */ = {
+            \t\t\tisa = XCConfigurationList;
+            \t\t\tbuildConfigurations = (
+            \t\t\t\tC1111111111111111111111C /* Release */,
+            \t\t\t);
+            \t\t\tdefaultConfigurationName = Release;
+            \t\t};
+            /* End XCConfigurationList section */
+            /* Begin XCBuildConfiguration section */
+            \t\tC0000000000000000000000C /* Release */ = {
+            \t\t\tisa = XCBuildConfiguration;
+            \t\t\tbuildSettings = {
+            \t\t\t\tMARKETING_VERSION = 1.0.0;
+            \t\t\t};
+            \t\t\tname = Release;
+            \t\t};
+            \t\tC1111111111111111111111C /* Release */ = {
+            \t\t\tisa = XCBuildConfiguration;
+            \t\t\tbuildSettings = {
+            \t\t\t\tMARKETING_VERSION = 1.0.0;
+            \t\t\t};
+            \t\t\tname = Release;
+            \t\t};
+            /* End XCBuildConfiguration section */
+            """
+        )
+        _write_version_file("App.xcodeproj/project.pbxproj", pbxproj)
+
+        result = self.invoke(["init"])
+        self.assertEqual(result.exit_code, 0, result.output)
+
+        contents = pathlib.Path(".vbump.yaml").read_text()
+        self.assertEqual(contents.count("- type: xcode-pbxproj"), 2)
+        self.assertIn('targets: ["App"]', contents)
+        self.assertIn('targets: ["AppTests"]', contents)
+
+        # The generated config must itself be usable for a real bump, not just look right.
+        result = self.invoke(["patch"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        written = pathlib.Path("App.xcodeproj/project.pbxproj").read_text()
+        self.assertEqual(written.count("MARKETING_VERSION = 1.0.1;"), 2)
+
     def test_does_not_detect_file_regexp_since_it_needs_an_include_pattern(self):
         _write_version_file("Dockerfile", "ARG VERSION=1.2.3\n")
 

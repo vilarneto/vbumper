@@ -105,7 +105,7 @@ class SemVer:
         )
 
     def with_advanced_prerelease(self, token: str | None = None) -> SemVer:
-        """Move into, or advance within, a prerelease sequence -- the shared logic behind the
+        """Move into, or advance within, a prerelease sequence: the shared logic behind the
         CLI's `prerelease`/`rc`/`alpha`/`beta` commands.
 
         If this version is not already a prerelease, starts one at `"<token or 'rc'>.1"`. If it

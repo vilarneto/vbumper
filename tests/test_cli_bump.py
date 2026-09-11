@@ -17,6 +17,11 @@ def _write_config(config_yaml: str) -> None:
     pathlib.Path(".vbump.yaml").write_text(textwrap.dedent(config_yaml))
 
 
+def _write_config_at(path: pathlib.Path, config_yaml: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(textwrap.dedent(config_yaml))
+
+
 def _write_version_file(relative_path: str, contents: str) -> None:
     path = pathlib.Path(relative_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -602,6 +607,42 @@ class TestStageCommand(BumpCLITestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertFalse(pathlib.Path("stage.marker").exists())
         self.assertEqual(pathlib.Path("post.marker").read_text(), "v1.2.4")
+
+
+class TestAbsoluteDirNeverLeaksIntoDisplayedPaths(BumpCLITestCase):
+    """A container's `describe()` (used in `list`/`bump` output, and in write-back error
+    messages) must always show a path relative to the project, never the local filesystem layout
+    `--dir`/`-d` happened to be given as."""
+
+    def setUp(self):
+        super().setUp()
+        self.project_dir = pathlib.Path.cwd() / "project"
+        _write_version_file(str(self.project_dir / "pkg" / "version.txt"), 'version = "1.2.3"\n')
+        _write_config_at(
+            self.project_dir / ".vbump.yaml",
+            """\
+            version: 3
+            discoverers:
+              - type: file-regexp
+                include: pkg/version.txt
+                version: 'version = "(?P<version>[^"]*)"'
+            """,
+        )
+
+    def test_list_does_not_leak_the_absolute_dir(self):
+        result = self.invoke(["--dir", str(self.project_dir), "list"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("pkg/version.txt", result.output)
+        self.assertNotIn(str(self.project_dir), result.output)
+
+    def test_bump_does_not_leak_the_absolute_dir(self):
+        result = self.invoke(["--dir", str(self.project_dir), "patch"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("pkg/version.txt", result.output)
+        self.assertNotIn(str(self.project_dir), result.output)
+        self.assertEqual(
+            (self.project_dir / "pkg" / "version.txt").read_text(), 'version = "1.2.4"\n'
+        )
 
 
 if __name__ == "__main__":

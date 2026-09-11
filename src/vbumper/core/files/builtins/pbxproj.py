@@ -161,6 +161,7 @@ class PBXProjTargetVersionContainer(VersionContainer):
     than a single parsed value, exactly like any other multi-copy container."""
 
     _file_path: pathlib.Path
+    _display_path: pathlib.Path
     _encoding: str
     _target_name: str
     _config_uuids: list[str]
@@ -169,6 +170,7 @@ class PBXProjTargetVersionContainer(VersionContainer):
         self,
         *,
         file_path: pathlib.Path,
+        display_path: pathlib.Path | None = None,
         encoding: str,
         target_name: str,
         config_uuids: list[str],
@@ -179,9 +181,12 @@ class PBXProjTargetVersionContainer(VersionContainer):
         configuration without the line at all isn't a copy of this container (there is nowhere
         to write a value back to without inventing a new line, which this does not attempt).
         `content` is the file's contents as already read by the discoverer, reused here to parse
-        each copy's initial status without a second read."""
+        each copy's initial status without a second read. See
+        `TextFileContentsVersionContainer.__init__` for the `file_path`/`display_path` split
+        (`write()` uses the former, `describe()` the latter)."""
 
         self._file_path = file_path
+        self._display_path = display_path if display_path is not None else file_path
         self._encoding = encoding
         self._target_name = target_name
         self._config_uuids = config_uuids
@@ -203,7 +208,7 @@ class PBXProjTargetVersionContainer(VersionContainer):
         return self._target_name
 
     def describe(self) -> str:
-        return f'{describe_file_container(self._file_path)} (target "{self._target_name}")'
+        return f'{describe_file_container(self._display_path)} (target "{self._target_name}")'
 
     def write(self) -> None:
         if not isinstance(self.status, Versioned):
@@ -285,7 +290,7 @@ class PBXProjDiscoverer(AbstractFileDiscoverer[PBXProjTargetVersionContainer]):
             )
 
     def _discover_from_file(
-        self, file_path: pathlib.Path
+        self, file_path: pathlib.Path, *, display_path: pathlib.Path
     ) -> Iterator[PBXProjTargetVersionContainer]:
         with file_path.open("rt", encoding=self._encoding) as file:
             content = file.read()
@@ -320,6 +325,7 @@ class PBXProjDiscoverer(AbstractFileDiscoverer[PBXProjTargetVersionContainer]):
 
             yield PBXProjTargetVersionContainer(
                 file_path=file_path,
+                display_path=display_path,
                 encoding=self._encoding,
                 target_name=target_name,
                 config_uuids=config_uuids,
@@ -362,6 +368,32 @@ class PBXProjFileConfig(pydantic.BaseModel):
             path_exclude_patterns=path_exclude_patterns,
             target_names=self.targets,
         )
+
+    @classmethod
+    def iter_auto_detected(
+        cls, *, dir_root: pathlib.Path, path_exclude_patterns: Iterable[str]
+    ) -> Iterator[tuple[list[str], dict[str, Any]]]:
+        """Optional auto-detection override, recognized by `vbumper.core.detect.detect_builtin_
+        discoverers` (see there for the general contract): one `(descriptions, extra_fields)` pair
+        per distinct target name found, instead of the default single, zero-config detection.
+
+        Xcode versions targets independently, not projects (see CLAUDE.md's design notes), so a
+        scaffolded `.vbump.yaml` should give each target its own `discoverers:` entry, scoped via
+        `targets: [name]` -- letting a user stop versioning one target later by deleting its
+        entry, rather than editing a shared one."""
+
+        unscoped = cls().create_discoverer(
+            dir_root=dir_root, path_exclude_patterns=path_exclude_patterns
+        )
+
+        descriptions_by_target: dict[str, list[str]] = {}
+        for container in unscoped.discover():
+            descriptions_by_target.setdefault(container.target_name, []).append(
+                container.describe()
+            )
+
+        for target_name, descriptions in descriptions_by_target.items():
+            yield descriptions, {"targets": [target_name]}
 
 
 __all__ = ["PBXProjFileConfig"]

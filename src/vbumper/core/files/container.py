@@ -15,16 +15,25 @@ def describe_file_container(file_path: pathlib.Path) -> str:
 class TextFileContentsVersionContainer(VersionContainer):
     _encoding: str
     _file_path: pathlib.Path
+    _display_path: pathlib.Path
     _chunks: list[bytes]
 
     def __init__(
         self,
         *,
         file_path: pathlib.Path,
+        display_path: pathlib.Path | None = None,
         version_chunks: list[bytes],
         chunks: list[bytes],
         encoding: str = "utf-8",
     ):
+        """`file_path` is what `write()` actually opens, following `--dir`/`-d`'s own
+        absolute-or-relative form so it stays valid regardless of the process's working
+        directory. `display_path` is what `describe()` reports instead: always relative to the
+        discovery root, so a container's textual description never leaks the local filesystem
+        layout `--dir` happened to be given as. Defaults to `file_path` for callers that
+        construct one directly (not through a discoverer's own walk, which always passes both)."""
+
         if len(chunks) < 2:
             raise ValueError(
                 "Text chunks must contain at least two parts: before and after version"
@@ -34,6 +43,7 @@ class TextFileContentsVersionContainer(VersionContainer):
 
         self._encoding = encoding
         self._file_path = file_path
+        self._display_path = display_path if display_path is not None else file_path
         self._chunks = chunks
 
         copies = [
@@ -65,7 +75,7 @@ class TextFileContentsVersionContainer(VersionContainer):
         return self._file_path
 
     def describe(self) -> str:
-        return describe_file_container(self._file_path)
+        return describe_file_container(self._display_path)
 
     def write(self) -> None:
         if not isinstance(self.status, Versioned):
@@ -95,6 +105,7 @@ class JSONFileVersionContainer(VersionContainer):
 
     _encoding: str
     _file_path: pathlib.Path
+    _display_path: pathlib.Path
     _data: dict[str, Any]
     _version_key: str
 
@@ -102,12 +113,17 @@ class JSONFileVersionContainer(VersionContainer):
         self,
         *,
         file_path: pathlib.Path,
+        display_path: pathlib.Path | None = None,
         data: dict[str, Any],
         version_key: str = "version",
         encoding: str = "utf-8",
     ):
+        """See `TextFileContentsVersionContainer.__init__` for the `file_path`/`display_path`
+        split."""
+
         self._encoding = encoding
         self._file_path = file_path
+        self._display_path = display_path if display_path is not None else file_path
         self._data = data
         self._version_key = version_key
 
@@ -131,7 +147,7 @@ class JSONFileVersionContainer(VersionContainer):
         return self._file_path
 
     def describe(self) -> str:
-        return describe_file_container(self._file_path)
+        return describe_file_container(self._display_path)
 
     def write(self) -> None:
         import json

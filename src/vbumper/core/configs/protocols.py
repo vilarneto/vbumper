@@ -29,7 +29,7 @@ class DiscovererConfigProtocol[Discoverer: DiscovererProtocol](Protocol):
         """Return a new Discoverer instance configured according to this config.
 
         `path_exclude_patterns` are the project-wide `exclude:` gitignore-style patterns from
-        `VBumpConfig` -- distinct from any filename-level exclusion the config itself may define.
+        `VBumpConfig`, distinct from any filename-level exclusion the config itself may define.
         `dir_root` is the CLI's `--dir`/`-d` value, resolved to a `Path`, if the run should
         scope discovery to it (see `vbumper.core.files.discoverer.resolve_discovery_root` for
         exactly how a file-based discoverer applies it). Implementations that have no use for

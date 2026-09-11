@@ -3,8 +3,9 @@
 Every discoverer is opt-in (see `vbumper.core.resolution.discover_containers`), so a fresh
 project needs an explicit config file before `vbump` finds anything at all. `init` closes that
 gap: it writes a `version: 3` config pre-populated with a `- type: ...` entry for each built-in
-discoverer type that actually finds something in the target directory, so first-run UX stays
-close to what a zero-config scan used to give for free -- but explicit and reviewable rather than
+discoverer type that actually finds something in the target directory (occasionally more than
+one entry per type; see `vbumper.core.detect.detect_builtin_discoverers`), so first-run UX stays
+close to what a zero-config scan used to give for free, but explicit and reviewable rather than
 implicit.
 
 Deliberately not a chained `Step`-returning command like the bump family (see `.bump`): it does
@@ -13,7 +14,7 @@ meaningfully combined with `patch`/`minor`/etc. in one invocation.
 """
 
 import pathlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import rich_click as click
 
@@ -24,14 +25,14 @@ if TYPE_CHECKING:
 
 
 def _target_config_path(dir_option: str) -> pathlib.Path:
-    """`dir_option` must name a directory -- `--dir`/`-d` only ever accepts one."""
+    """`dir_option` must name a directory (`--dir`/`-d` only ever accepts one)."""
 
     return pathlib.Path(dir_option) / ".vbump.yaml"
 
 
 def _render_flows_section(flows: "dict[str, FlowDefinition]") -> str:
-    """Render a `flows:` block for `flows`, via a plain (non-round-trip) `ruamel.yaml` dump --
-    unlike `discoverers:`'s hand-built lines below, a flow's fields (arbitrary shell commands,
+    """Render a `flows:` block for `flows`, via a plain (non-round-trip) `ruamel.yaml` dump.
+    Unlike `discoverers:`'s hand-built lines below, a flow's fields (arbitrary shell commands,
     variable values) can contain YAML-special characters a naive `f"{key}: {value}"` line would
     mangle, so this always goes through a real YAML writer instead."""
 
@@ -55,8 +56,10 @@ def _render_flows_section(flows: "dict[str, FlowDefinition]") -> str:
 
 
 def _render_config(
-    detected: list[tuple[str, list[str]]], flows: "dict[str, FlowDefinition]"
+    detected: list[tuple[str, list[str], dict[str, Any]]], flows: "dict[str, FlowDefinition]"
 ) -> str:
+    import json
+
     from vbumper.config.root import CONFIG_VERSION, config_header_comment
 
     lines = [config_header_comment(), f"version: {CONFIG_VERSION}", ""]
@@ -65,12 +68,17 @@ def _render_config(
         lines.append("")
     if detected:
         lines.append("discoverers:")
-        for type_name, descriptions in detected:
+        for type_name, descriptions, extra_fields in detected:
             lines.extend(f"  # {description}" for description in descriptions)
             lines.append(f"  - type: {type_name}")
+            # `json.dumps` doubles as a safe, always-valid-YAML-flow-scalar renderer here (JSON
+            # is a subset of YAML), so a value with special characters (e.g. a target name with a
+            # colon or quote in it) can never corrupt the hand-built lines around it.
+            for key, value in extra_fields.items():
+                lines.append(f"    {key}: {json.dumps(value)}")
     else:
         lines.append("# No built-in discoverer matched anything under this directory.")
-        lines.append("# Add entries here -- see the README's built-in and file-regexp recipes.")
+        lines.append("# Add entries here (see the README's built-in and file-regexp recipes).")
         lines.append("discoverers: []")
     lines.append("")
     return "\n".join(lines)
@@ -78,7 +86,7 @@ def _render_config(
 
 def _resolve_requested_flows(raw: str | None) -> "dict[str, FlowDefinition]":
     """Look up each comma-separated name in `raw` against `~/.vbumpconfig.yaml`'s own `flows:`,
-    all-or-nothing -- an unknown name fails before anything is written, so `init` never leaves a
+    all-or-nothing: an unknown name fails before anything is written, so `init` never leaves a
     half-populated file behind."""
 
     from vbumper.config.flow import FLOW_KEY_PATTERN
@@ -129,7 +137,7 @@ def init(flows: str | None) -> None:
 
     existing = find_config_path(options.dir)
     if existing is not None:
-        raise click.UsageError(f"{existing} already exists -- not overwriting it.")
+        raise click.UsageError(f"{existing} already exists; not overwriting it.")
 
     requested_flows = _resolve_requested_flows(flows)
     detected = detect_builtin_discoverers(pathlib.Path(options.dir))
@@ -145,10 +153,10 @@ def init(flows: str | None) -> None:
     if requested_flows:
         click.echo("Added flows: " + ", ".join(requested_flows))
     if detected:
-        click.echo("Detected discoverers: " + ", ".join(type_name for type_name, _ in detected))
+        click.echo("Detected discoverers: " + ", ".join(type_name for type_name, _, _ in detected))
     else:
         click.echo(
-            "No built-in discoverer matched anything here -- edit discoverers: by hand"
+            "No built-in discoverer matched anything here; edit discoverers: by hand"
             " (see the README)."
         )
 

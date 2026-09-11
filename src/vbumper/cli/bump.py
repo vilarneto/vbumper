@@ -3,7 +3,7 @@
 
 Each command returns a `Step` closure rather than doing any work itself; `_run_chain` (the
 group's `result_callback`) runs every returned step, in the order given on the command line,
-against one shared `BumpChainState`, then writes back whatever changed -- unless `print` was
+against one shared `BumpChainState`, then writes back whatever changed, unless `print` was
 anywhere in the chain, which makes the whole invocation read-only (see `print_`). This mirrors
 the legacy CLI's chain-group shape (`@click.group(chain=True)`) while computing a single
 aggregate "current version" across all discovered containers instead of bumping each file
@@ -251,7 +251,7 @@ def _run_chain(steps: list[Step], **_kwargs: object) -> None:
 
     callable_steps = [step for step in steps if callable(step)]
     if not callable_steps:
-        # No bump-family command was chained (e.g. a bare `list`, or `init` with nothing else) --
+        # No bump-family command was chained (e.g. a bare `list`, or `init` with nothing else):
         # nothing here needs a config to be loaded or containers discovered. This also matters
         # for `-n init`: in dry-run mode it doesn't write a config file at all, and requiring one
         # to exist just to no-op through this callback would defeat the preview.
@@ -268,7 +268,7 @@ def _run_chain(steps: list[Step], **_kwargs: object) -> None:
         step(state)
 
     if state.read_only:
-        # `print` was somewhere in the chain -- report only, via its own step's `click.echo`
+        # `print` was somewhere in the chain: report only, via its own step's `click.echo`
         # above. No write-back, no flow preconditions/commands, regardless of what else the
         # chain computed.
         return

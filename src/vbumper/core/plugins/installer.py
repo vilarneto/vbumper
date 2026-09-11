@@ -63,9 +63,9 @@ def iter_registered_config_classes() -> Iterator[
     """Iterate over every registered discoverer config class, in registration order.
 
     Used by `vbump init` to auto-detect which built-in discoverer types apply to a project: a
-    type is "auto-detectable" exactly when it can be constructed with no user-supplied
-    parameters at all (`from_config_dict({})` succeeds) -- which is precisely the same set of
-    types the "universal built-in, no `include:` required" design in the project's config
+    type is “auto-detectable” exactly when it can be constructed with no user-supplied
+    parameters at all (`from_config_dict({})` succeeds), which is precisely the same set of
+    types the “universal built-in, no `include:` required” design in the project's config
     documentation calls out (`pyproject-toml`, `package-json`, ...). A type like `file-regexp`
     requires an `include:` pattern to mean anything, so `from_config_dict({})` raises for it and
     it's naturally excluded, with no separate list to keep in sync."""
