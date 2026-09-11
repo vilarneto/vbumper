@@ -20,7 +20,7 @@ import pydantic
 
 from vbumper.core.containers.base import VersionContainer
 from vbumper.core.containers.types import NO_SEMVER, NoSemVer, Versioned, resolve_status
-from vbumper.core.exceptions import DiscovererFailure
+from vbumper.core.exceptions import ConfigurationError, DiscovererFailure
 from vbumper.core.semver import SemVer
 
 from ..container import describe_file_container
@@ -117,6 +117,25 @@ def _find_marketing_version_span(content: str, config_uuid: str) -> tuple[int, i
     return None
 
 
+def _coerce_target_names(value: str | list[str]) -> list[str]:
+    """Accept a single target name or a list of them; normalize a bare string to a one-element
+    list. Deliberately duplicated from the same-shaped `_coerce_patterns` in
+    `vbumper.core.files.config` rather than shared -- see that module's `PathspecPatterns` for
+    why a plugin-owned discoverer config avoids depending on shared machinery beyond its own
+    module."""
+
+    if isinstance(value, str):
+        return [value]
+    return value
+
+
+#: A target name or a list of them, restricting `PBXProjDiscoverer` to only the named
+#: `PBXNativeTarget`s. Unlike `PathspecPatterns`'s `include:`, omitting this field entirely means
+#: "no restriction" (`None`) -- the `min_length=1` enforced where this is used as a field type
+#: only rejects an *explicit* empty list, which could never match anything.
+TargetNames = Annotated[list[str], pydantic.BeforeValidator(_coerce_target_names)]
+
+
 def _parse_copy(raw: str) -> SemVer | NoSemVer | None:
     """See `TextFileContentsVersionContainer._parse_copy` for the same convention: empty string
     is unversioned (`NO_SEMVER`), unparseable non-empty is `None` (raw content discarded),
@@ -175,6 +194,14 @@ class PBXProjTargetVersionContainer(VersionContainer):
 
         super().__init__(status=resolve_status(copies))
 
+    @property
+    def target_name(self) -> str:
+        """The `PBXNativeTarget` name this container was discovered from -- exposed so
+        `PBXProjDiscoverer.discover` can check which configured `targets:` names were actually
+        matched, without reaching into the private `_target_name`."""
+
+        return self._target_name
+
     def describe(self) -> str:
         return f'{describe_file_container(self._file_path)} (target "{self._target_name}")'
 
@@ -214,6 +241,7 @@ class PBXProjDiscoverer(AbstractFileDiscoverer[PBXProjTargetVersionContainer]):
     docstring for why this can't reuse `RegularExpressionFileDiscoverer`."""
 
     _encoding: str
+    _target_names: frozenset[str] | None
 
     def __init__(
         self,
@@ -222,13 +250,39 @@ class PBXProjDiscoverer(AbstractFileDiscoverer[PBXProjTargetVersionContainer]):
         encoding: str = "utf-8",
         include_patterns: Iterable[str] = (),
         path_exclude_patterns: Iterable[str] = (),
+        target_names: Iterable[str] | None = None,
     ):
+        """`target_names`, if given, restricts discovery to `PBXNativeTarget`s with one of these
+        exact names -- `None` (the default) means every target is a candidate, matching this
+        built-in's original zero-configuration behavior."""
+
         super().__init__(
             root_dir=root_dir,
             include_patterns=include_patterns,
             path_exclude_patterns=path_exclude_patterns,
         )
         self._encoding = encoding
+        self._target_names = frozenset(target_names) if target_names is not None else None
+
+    def discover(self) -> Iterator[PBXProjTargetVersionContainer]:
+        if self._target_names is None:
+            yield from super().discover()
+            return
+
+        # A configured name that never matches any target across every scanned file is almost
+        # certainly a typo/stale reference -- only detectable once the whole walk has completed,
+        # so this wraps the inherited walk rather than checking per-file.
+        unmatched = set(self._target_names)
+        for container in super().discover():
+            unmatched.discard(container.target_name)
+            yield container
+
+        if unmatched:
+            names = ", ".join(sorted(unmatched))
+            raise ConfigurationError(
+                f"xcode-pbxproj: targets: {names} matched no PBXNativeTarget under the"
+                f" discovery root"
+            )
 
     def _discover_from_file(
         self, file_path: pathlib.Path
@@ -252,6 +306,10 @@ class PBXProjDiscoverer(AbstractFileDiscoverer[PBXProjTargetVersionContainer]):
             if name_match is None or config_list_match is None:
                 continue
 
+            target_name = name_match.group("name").strip('"')
+            if self._target_names is not None and target_name not in self._target_names:
+                continue
+
             config_uuids = [
                 config_uuid
                 for config_uuid in config_lists.get(config_list_match.group("uuid"), [])
@@ -263,7 +321,7 @@ class PBXProjDiscoverer(AbstractFileDiscoverer[PBXProjTargetVersionContainer]):
             yield PBXProjTargetVersionContainer(
                 file_path=file_path,
                 encoding=self._encoding,
-                target_name=name_match.group("name").strip('"'),
+                target_name=target_name,
                 config_uuids=config_uuids,
                 content=content,
             )
@@ -273,9 +331,14 @@ class PBXProjFileConfig(pydantic.BaseModel):
     """Implements `DiscovererConfigProtocol[PBXProjDiscoverer]` structurally (see
     `RegularExpressionFileConfig` for why this can't just inherit the protocol directly).
 
-    A zero-configuration built-in: every `project.pbxproj` found in the discovery scope is a
+    Needs no parameters by default: every `project.pbxproj` found in the discovery scope is a
     candidate, yielding one container per `PBXNativeTarget` it declares (see
-    `PBXProjDiscoverer`)."""
+    `PBXProjDiscoverer`). `targets:` optionally narrows that down to specific target names."""
+
+    #: A target name or list of names to restrict discovery to; `None` (the default, including
+    #: an omitted `targets:` key) means every target is a candidate. An explicit empty list is
+    #: rejected (`min_length=1`) rather than silently discovering nothing.
+    targets: Annotated[TargetNames, pydantic.Field(min_length=1)] | None = None
 
     @classmethod
     def get_type(cls) -> str:
@@ -297,6 +360,7 @@ class PBXProjFileConfig(pydantic.BaseModel):
             encoding="utf-8",
             include_patterns=["project.pbxproj"],
             path_exclude_patterns=path_exclude_patterns,
+            target_names=self.targets,
         )
 
 

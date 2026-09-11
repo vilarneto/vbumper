@@ -3,7 +3,10 @@ import pathlib
 import tempfile
 import unittest
 
+import pydantic
+
 from vbumper.core.containers.types import Invalid, Mismatched, Unversioned, Versioned
+from vbumper.core.exceptions import ConfigurationError
 from vbumper.core.files.builtins.pbxproj import PBXProjFileConfig
 from vbumper.core.semver import SemVer
 
@@ -99,8 +102,8 @@ class PBXProjDiscovererTestCase(unittest.TestCase):
         os.chdir(tmp_dir.name)
         self.addCleanup(os.chdir, previous_cwd)
 
-    def discover(self):
-        discoverer = PBXProjFileConfig().create_discoverer()
+    def discover(self, *, targets: str | list[str] | None = None):
+        discoverer = PBXProjFileConfig(targets=targets).create_discoverer()
         return list(discoverer.discover())
 
     def test_finds_one_container_per_target(self):
@@ -164,6 +167,92 @@ class PBXProjDiscovererTestCase(unittest.TestCase):
         tests_status = next(v for k, v in statuses.items() if '"AppTests"' in k)
         self.assertEqual(app_status, Versioned(value=SemVer.parse("1.0.0")))
         self.assertEqual(tests_status, Versioned(value=SemVer.parse("2.0.0")))
+
+    def test_targets_as_a_single_string_restricts_to_that_target(self):
+        content = _pbxproj(
+            _target(
+                "A0000000000000000000000A",
+                "App",
+                "B0000000000000000000000B",
+                debug_uuid="C0000000000000000000000C",
+                release_uuid="D0000000000000000000000D",
+                debug_version="1.0.0",
+                release_version="1.0.0",
+            ),
+            _target(
+                "A1111111111111111111111A",
+                "AppTests",
+                "B1111111111111111111111B",
+                debug_uuid="C1111111111111111111111C",
+                release_uuid="D1111111111111111111111D",
+                debug_version="2.0.0",
+                release_version="2.0.0",
+            ),
+        )
+        _write("App.xcodeproj/project.pbxproj", content)
+
+        containers = self.discover(targets="App")
+        self.assertEqual(len(containers), 1)
+        self.assertIn('"App"', containers[0].describe())
+
+    def test_targets_as_a_list_restricts_to_that_subset(self):
+        content = _pbxproj(
+            _target(
+                "A0000000000000000000000A",
+                "App",
+                "B0000000000000000000000B",
+                debug_uuid="C0000000000000000000000C",
+                release_uuid="D0000000000000000000000D",
+                debug_version="1.0.0",
+                release_version="1.0.0",
+            ),
+            _target(
+                "A1111111111111111111111A",
+                "AppTests",
+                "B1111111111111111111111B",
+                debug_uuid="C1111111111111111111111C",
+                release_uuid="D1111111111111111111111D",
+                debug_version="2.0.0",
+                release_version="2.0.0",
+            ),
+            _target(
+                "A2222222222222222222222A",
+                "AppUITests",
+                "B2222222222222222222222B",
+                debug_uuid="C2222222222222222222222C",
+                release_uuid="D2222222222222222222222D",
+                debug_version="3.0.0",
+                release_version="3.0.0",
+            ),
+        )
+        _write("App.xcodeproj/project.pbxproj", content)
+
+        containers = self.discover(targets=["App", "AppUITests"])
+        names = {c.target_name for c in containers}
+        self.assertEqual(names, {"App", "AppUITests"})
+
+    def test_unmatched_target_name_raises_configuration_error(self):
+        content = _pbxproj(
+            _target(
+                "AAAAAAAAAAAAAAAAAAAAAAAA",
+                "App",
+                "BBBBBBBBBBBBBBBBBBBBBBBB",
+                debug_uuid="CCCCCCCCCCCCCCCCCCCCCCCC",
+                release_uuid="DDDDDDDDDDDDDDDDDDDDDDDD",
+            )
+        )
+        _write("App.xcodeproj/project.pbxproj", content)
+
+        with self.assertRaises(ConfigurationError):
+            self.discover(targets=["App", "NoSuchTarget"])
+
+    def test_unmatched_target_name_raises_configuration_error_with_no_pbxproj_at_all(self):
+        with self.assertRaises(ConfigurationError):
+            self.discover(targets="NoSuchTarget")
+
+    def test_empty_targets_list_is_rejected_by_validation(self):
+        with self.assertRaises(pydantic.ValidationError):
+            PBXProjFileConfig(targets=[])
 
     def test_mismatched_copies_within_one_target(self):
         content = _pbxproj(

@@ -102,7 +102,8 @@ Built-in containers
 
 Each of these takes no parameters beyond ``type:`` -- activating one is a single ``- type: ...``
 line under ``discoverers:``, with no ``include:`` needed since the filename/key is fixed by
-convention:
+convention. ``xcode-pbxproj`` is the one exception, with an optional ``targets:`` field (see
+below).
 
 .. list-table::
    :header-rows: 1
@@ -127,7 +128,11 @@ convention:
        ``PBXNativeTarget`` declared in the file (e.g. an app target and its test target) is
        discovered as its own, independent container -- bumping one never touches the other -- and
        a target's several build-configuration copies (typically Debug and Release) are treated as
-       one container that must agree internally.
+       one container that must agree internally. An optional ``targets:`` field (a target name, or
+       a list of them) restricts discovery to just those targets -- omitted (or ``~``) means every
+       target, the default; an explicit empty list is rejected, since it could never match
+       anything; a name that matches no ``PBXNativeTarget`` under the discovery root is a
+       configuration error.
    * - ``setup-py``
      - ``setup.py``
      - A ``version="..."`` keyword argument to ``setup()``, at the start of a line.
