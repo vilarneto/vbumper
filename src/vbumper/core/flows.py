@@ -9,6 +9,7 @@ into the chain group's `result_callback`.
 """
 
 import os
+import pathlib
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -226,9 +227,10 @@ def run_stage_command(
     variables: dict[str, str] | None = None,
     dry_run: bool,
 ) -> None:
-    """Run `stage_command` once per file-backed container in `containers` (in order), with
-    `{CHANGED_FILE}` substituted to that container's own `file_path`. A container whose
-    `file_path` is `None` (not file-backed) is skipped.
+    """Run `stage_command` once per distinct file backing `containers` (in order of first
+    appearance), with `{CHANGED_FILE}` substituted to that file's path. A container whose
+    `file_path` is `None` (not file-backed) is skipped; several containers sharing the same
+    `file_path` (e.g. multiple Xcode targets in one `project.pbxproj`) only run it once.
 
     A no-op if `stage_command` is `None`: vbumper never stages anything unless a flow opts in
     explicitly, and never touches anything beyond the exact files it just wrote itself. Runs
@@ -242,10 +244,12 @@ def run_stage_command(
     if stage_command is None:
         return
 
+    seen_file_paths: set[pathlib.Path] = set()
     for container in containers:
         file_path = container.file_path
-        if file_path is None:
+        if file_path is None or file_path in seen_file_paths:
             continue
+        seen_file_paths.add(file_path)
 
         substituted = substitute_placeholders(
             stage_command,
