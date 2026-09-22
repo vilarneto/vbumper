@@ -207,6 +207,10 @@ class PBXProjTargetVersionContainer(VersionContainer):
 
         return self._target_name
 
+    @property
+    def file_path(self) -> pathlib.Path:
+        return self._file_path
+
     def describe(self) -> str:
         return f'{describe_file_container(self._display_path)} (target "{self._target_name}")'
 
