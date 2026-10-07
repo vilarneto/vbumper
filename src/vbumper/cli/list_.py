@@ -21,7 +21,7 @@ def _describe_status(status: VersionStatus) -> str:
     raise AssertionError(f"Unhandled version status: {status!r}")  # pragma: no cover
 
 
-@root_grp.command("list")
+@root_grp.command("list", aliases=["ls"])
 def list_():
     """Show every discovered version container and its current version."""
 

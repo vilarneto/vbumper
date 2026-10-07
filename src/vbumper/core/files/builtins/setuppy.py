@@ -23,6 +23,8 @@ class SetupPyFileConfig(pydantic.BaseModel):
     found in the discovery scope is a candidate.
     """
 
+    model_config = pydantic.ConfigDict(extra="forbid")
+
     @classmethod
     def get_type(cls) -> str:
         return "setup-py"

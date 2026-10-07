@@ -114,6 +114,8 @@ class GitTagConfig(pydantic.BaseModel):
     coupling, consistent with how a flow's own `variables:` already work.
     """
 
+    model_config = pydantic.ConfigDict(extra="forbid")
+
     tag_prefix: Annotated[str, pydantic.Field(default="v")]
 
     @classmethod

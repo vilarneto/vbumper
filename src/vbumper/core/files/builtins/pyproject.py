@@ -25,6 +25,8 @@ class PyProjectTomlFileConfig(pydantic.BaseModel):
     is nothing else worth exposing here.
     """
 
+    model_config = pydantic.ConfigDict(extra="forbid")
+
     @classmethod
     def get_type(cls) -> str:
         return "pyproject-toml"

@@ -22,6 +22,8 @@ class PackageJsonFileConfig(pydantic.BaseModel):
     fully regenerated the file via `json.dump(..., indent=2)` rather than patching in place.
     """
 
+    model_config = pydantic.ConfigDict(extra="forbid")
+
     @classmethod
     def get_type(cls) -> str:
         return "package-json"

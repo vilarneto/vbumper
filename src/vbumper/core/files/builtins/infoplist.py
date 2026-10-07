@@ -44,6 +44,8 @@ class InfoPlistFileConfig(pydantic.BaseModel):
     escape, so the capture is used, and written back, verbatim.
     """
 
+    model_config = pydantic.ConfigDict(extra="forbid")
+
     @classmethod
     def get_type(cls) -> str:
         return "info-plist"

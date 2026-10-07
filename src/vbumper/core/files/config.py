@@ -36,6 +36,8 @@ class RegularExpressionFileConfig(pydantic.BaseModel):
     inherit from `DiscovererConfigProtocol` directly (metaclass conflict); it satisfies the
     protocol by shape instead, which is all `Protocol` ever requires."""
 
+    model_config = pydantic.ConfigDict(extra="forbid")
+
     allow_multiple_matches: Annotated[bool, pydantic.Field(default=False)]
     encoding: Annotated[str, pydantic.Field(default="utf-8")]
     #: Required: a generic `file-regexp` entry must state at least one gitignore-style pattern

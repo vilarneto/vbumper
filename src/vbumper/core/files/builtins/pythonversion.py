@@ -30,6 +30,8 @@ class PythonVersionFileConfig(pydantic.BaseModel):
     candidate.
     """
 
+    model_config = pydantic.ConfigDict(extra="forbid")
+
     @classmethod
     def get_type(cls) -> str:
         return "python-version"

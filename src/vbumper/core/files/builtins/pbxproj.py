@@ -349,6 +349,8 @@ class PBXProjFileConfig(pydantic.BaseModel):
     candidate, yielding one container per `PBXNativeTarget` it declares (see
     `PBXProjDiscoverer`). `targets:` optionally narrows that down to specific target names."""
 
+    model_config = pydantic.ConfigDict(extra="forbid")
+
     #: A target name or list of names to restrict discovery to; `None` (the default, including
     #: an omitted `targets:` key) means every target is a candidate. An explicit empty list is
     #: rejected (`min_length=1`) rather than silently discovering nothing.
