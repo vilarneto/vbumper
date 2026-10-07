@@ -211,6 +211,10 @@ class PBXProjTargetVersionContainer(VersionContainer):
     def file_path(self) -> pathlib.Path:
         return self._file_path
 
+    @property
+    def is_writable(self) -> bool:
+        return True
+
     def describe(self) -> str:
         return f'{describe_file_container(self._display_path)} (target "{self._target_name}")'
 
@@ -381,10 +385,10 @@ class PBXProjFileConfig(pydantic.BaseModel):
         discoverers` (see there for the general contract): one `(descriptions, extra_fields)` pair
         per distinct target name found, instead of the default single, zero-config detection.
 
-        Xcode versions targets independently, not projects (see CLAUDE.md's design notes), so a
-        scaffolded `.vbump.yaml` should give each target its own `discoverers:` entry, scoped via
-        `targets: [name]` -- letting a user stop versioning one target later by deleting its
-        entry, rather than editing a shared one."""
+        Xcode versions targets independently, not projects, so a scaffolded `.vbump.yaml` should
+        give each target its own `discoverers:` entry, scoped via `targets: [name]` -- letting a
+        user stop versioning one target later by deleting its entry, rather than editing a
+        shared one."""
 
         unscoped = cls().create_discoverer(
             dir_root=dir_root, path_exclude_patterns=path_exclude_patterns

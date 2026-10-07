@@ -20,6 +20,7 @@ class CorePlugin(VBumpPluginProtocol):
         from vbumper.core.files.builtins.pythonversion import PythonVersionFileConfig
         from vbumper.core.files.builtins.setuppy import SetupPyFileConfig
         from vbumper.core.files.config import RegularExpressionFileConfig
+        from vbumper.core.git.gittag import GitTagConfig
 
         yield RegularExpressionFileConfig
         yield PyProjectTomlFileConfig
@@ -28,6 +29,7 @@ class CorePlugin(VBumpPluginProtocol):
         yield PBXProjFileConfig
         yield SetupPyFileConfig
         yield PythonVersionFileConfig
+        yield GitTagConfig
 
 
 __all__ = ["CorePlugin"]

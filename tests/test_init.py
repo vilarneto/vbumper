@@ -111,9 +111,9 @@ class TestInitScaffold(InitCLITestCase):
         self.assertNotIn(str(project_dir), contents)
 
     def test_xcode_pbxproj_scaffolds_one_entry_per_target(self):
-        """Xcode versions targets independently, not projects (see CLAUDE.md's design notes), so
-        `init` should scaffold one `discoverers:` entry per target, each scoped via its own
-        single-item `targets:`, rather than one entry covering every target in the file."""
+        """Xcode versions targets independently, not projects, so `init` should scaffold one
+        `discoverers:` entry per target, each scoped via its own single-item `targets:`, rather
+        than one entry covering every target in the file."""
 
         pbxproj = textwrap.dedent(
             """\

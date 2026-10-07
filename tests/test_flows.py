@@ -41,6 +41,10 @@ class _FakeContainer(VersionContainer):
     def file_path(self):
         return self._file_path
 
+    @property
+    def is_writable(self) -> bool:
+        return True
+
     def describe(self):
         return f"Fake {self._file_path}"
 

@@ -31,6 +31,7 @@ Guide
 
    guide/configuration
    guide/file-regexp
+   guide/git-tag
    guide/git-workflows
 
 Plugin developers

@@ -107,14 +107,18 @@ def resolve_common_version(
 def containers_to_update(
     containers: Iterable[VersionContainer], *, skip_unreadable_version_strings: bool = False
 ) -> list[VersionContainer]:
-    """The containers write-back should actually touch: all of them, unless
-    `skip_unreadable_version_strings` is set, in which case containers that were `Invalid` or
-    `Mismatched` at discovery time are left untouched entirely (consistent with
-    `resolve_common_version` treating them as if never discovered)."""
+    """The containers write-back should actually touch: every discovered container whose
+    `is_writable` is `True`, unless `skip_unreadable_version_strings` is set, in which case
+    containers that were `Invalid` or `Mismatched` at discovery time are also left untouched
+    entirely (consistent with `resolve_common_version` treating them as if never discovered).
+
+    A container with `is_writable` `False` (e.g. a Git-tag history container, which can only
+    ever reflect a bootstrap-time snapshot) is excluded unconditionally: it's never a candidate
+    for `set_status()` or `write()`, regardless of `skip_unreadable_version_strings`."""
 
     from vbumper.core.containers.types import Invalid, Mismatched
 
-    containers = list(containers)
+    containers = [container for container in containers if container.is_writable]
     if not skip_unreadable_version_strings:
         return containers
 

@@ -17,6 +17,10 @@ class FakeContainer(VersionContainer):
         super().__init__(status=status)
         self.name = name
 
+    @property
+    def is_writable(self) -> bool:
+        return True
+
     def describe(self) -> str:
         return self.name
 

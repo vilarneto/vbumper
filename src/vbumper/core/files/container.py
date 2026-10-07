@@ -74,6 +74,10 @@ class TextFileContentsVersionContainer(VersionContainer):
     def file_path(self) -> pathlib.Path:
         return self._file_path
 
+    @property
+    def is_writable(self) -> bool:
+        return True
+
     def describe(self) -> str:
         return describe_file_container(self._display_path)
 
@@ -145,6 +149,10 @@ class JSONFileVersionContainer(VersionContainer):
     @property
     def file_path(self) -> pathlib.Path:
         return self._file_path
+
+    @property
+    def is_writable(self) -> bool:
+        return True
 
     def describe(self) -> str:
         return describe_file_container(self._display_path)

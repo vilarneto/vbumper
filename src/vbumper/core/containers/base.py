@@ -66,6 +66,21 @@ class VersionContainer(abc.ABC):
         must implement."""
         return None
 
+    @property
+    @abc.abstractmethod
+    def is_writable(self) -> bool:
+        """Whether this container can ever be a write-back target.
+
+        No default: every concrete container must say so explicitly. A container type that can
+        only ever reflect a bootstrap-time snapshot of its source of truth (e.g. Git tag
+        history, where the discoverer's own read already is the authoritative value, so there
+        is nothing to write back to a tag's own meaning) returns `False`. This is declared up
+        front, not inferred from `has_changed` or any other behavior, so the rest of the engine
+        never has to guess whether writing is meaningful for a given container. Only `True`
+        containers are ever passed to `set_status()` or `write()` by
+        `vbumper.core.resolution.containers_to_update`."""
+        ...
+
     @abc.abstractmethod
     def describe(self) -> str:
         """Return a textual description of the underlying version container, without the version

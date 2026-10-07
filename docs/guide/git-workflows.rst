@@ -3,7 +3,9 @@ Git workflows
 
 A *flow* is a named sequence of commands run around the version write-back -- some before the
 version files are rewritten, some after -- checking out a release branch, merging it, tagging the
-result, whatever your release process needs.
+result, whatever your release process needs. (A project with no version file at all, see
+:doc:`git-tag`, still uses a flow exactly like this to create its release tag; there's just no
+write-back step in between.)
 
 Here is one, defined under the key ``release``: it checks out a release branch, merges the
 development branch into it, then -- after the version files themselves are rewritten -- commits

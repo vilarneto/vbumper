@@ -50,8 +50,8 @@ Top-level keys
        discoverer, and can prune whole directories from the walk.
    * - ``discoverers``
      - ``[]``
-     - Extra discoverer entries, added on top of the built-ins (see `Built-in containers`_ and
-       :doc:`file-regexp`).
+     - Extra discoverer entries, added on top of the built-ins (see `Built-in containers`_,
+       :doc:`file-regexp`, and :doc:`git-tag` for a project with no version file at all).
    * - ``flows``
      - ``{}``
      - Named Git (or other) release workflows (see :doc:`git-workflows`).

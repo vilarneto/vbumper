@@ -17,6 +17,10 @@ class FakeContainer(VersionContainer):
         self.write_calls = 0
         self.fail_write = False
 
+    @property
+    def is_writable(self) -> bool:
+        return True
+
     def describe(self) -> str:
         return self.name
 
@@ -106,6 +110,24 @@ class TestContainersToUpdate(unittest.TestCase):
         )
 
         self.assertEqual(result, [versioned, unversioned])
+
+    def test_non_writable_container_is_always_excluded(self):
+        writable = FakeContainer(Versioned(value=V123))
+        read_only = _FakeReadOnlyContainer(Versioned(value=V200))
+
+        self.assertEqual(containers_to_update([writable, read_only]), [writable])
+        self.assertEqual(
+            containers_to_update([writable, read_only], skip_unreadable_version_strings=True),
+            [writable],
+        )
+
+
+class _FakeReadOnlyContainer(FakeContainer):
+    """A `FakeContainer` whose `is_writable` is `False`, mirroring `GitTagVersionContainer`."""
+
+    @property
+    def is_writable(self) -> bool:
+        return False
 
 
 class TestFakeContainerSanity(unittest.TestCase):
