@@ -44,7 +44,7 @@ def raise_configuration_error(path: Path, cause: Exception) -> None:
     import pydantic
     from ruamel.yaml import YAMLError
 
-    from vbumper.core.exceptions import ConfigurationError
+    from vbumper.core.exceptions import ConfigurationError, format_validation_error
 
     if isinstance(cause, YAMLError):
         location = ""
@@ -54,11 +54,7 @@ def raise_configuration_error(path: Path, cause: Exception) -> None:
         raise ConfigurationError(f"{path}{location}: {cause}") from cause
 
     if isinstance(cause, pydantic.ValidationError):
-        details = "; ".join(
-            f"{'.'.join(str(part) for part in error['loc']) or '<root>'}: {error['msg']}"
-            for error in cause.errors()
-        )
-        raise ConfigurationError(f"{path}: {details}") from cause
+        raise ConfigurationError(f"{path}: {format_validation_error(cause)}") from cause
 
     raise ConfigurationError(f"{path}: {cause}") from cause
 

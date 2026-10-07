@@ -10,7 +10,9 @@ def create_config(config_data: dict[str, Any]) -> DiscovererConfigProtocol[Disco
 
     The 'type' key determines the actual config class."""
 
-    from vbumper.core.exceptions import ConfigurationError
+    import pydantic
+
+    from vbumper.core.exceptions import ConfigurationError, format_validation_error
     from vbumper.core.plugins.installer import get_config_cls
 
     config_data = dict(config_data)
@@ -20,7 +22,12 @@ def create_config(config_data: dict[str, Any]) -> DiscovererConfigProtocol[Disco
         raise ConfigurationError("Missing 'type' key in config") from None
 
     config_cls = get_config_cls(config_type)
-    return config_cls.from_config_dict(config_data)
+    try:
+        return config_cls.from_config_dict(config_data)
+    except pydantic.ValidationError as exc:
+        raise ConfigurationError(
+            f"discoverers: type {config_type!r}: {format_validation_error(exc)}"
+        ) from exc
 
 
 __all__ = ["create_config"]

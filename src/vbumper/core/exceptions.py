@@ -1,5 +1,22 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pydantic
+
+
 class VBumpError(Exception):
     pass
+
+
+def format_validation_error(exc: "pydantic.ValidationError") -> str:
+    """Render a Pydantic `ValidationError` as a single human-readable line, listing each
+    offending field path and its message. Shared by every call site that turns a raw
+    `ValidationError` into a `ConfigurationError`, so the format stays consistent."""
+
+    return "; ".join(
+        f"{'.'.join(str(part) for part in error['loc']) or '<root>'}: {error['msg']}"
+        for error in exc.errors()
+    )
 
 
 class ConfigurationError(VBumpError):
@@ -86,4 +103,5 @@ __all__ = [
     "VBumpError",
     "WriteBackFailure",
     "WrongBranchError",
+    "format_validation_error",
 ]
