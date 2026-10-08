@@ -278,6 +278,9 @@ def _run_chain(steps: list[Step], **_kwargs: object) -> None:
 
     assert state.current_version is not None  # `changed` is only set alongside a real value
 
+    verb = "Would set" if options.dry_run else "Setting"
+    click.echo(f"{verb} version to {state.current_version}")
+
     selected_flow = resolve_selected_flow(config, flow=options.flow, no_flow=options.no_flow)
     if selected_flow is not None:
         _, flow_config = selected_flow
